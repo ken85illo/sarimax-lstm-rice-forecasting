@@ -261,6 +261,33 @@ class LSTMNetwork:
 
         output = self.W_y @ h + self.b_y
         return output[0]
+
+
+    def save_model(self, filename="lstm_model.npz"):
+            # We save all learnable parameters into a single .npz file
+            np.savez(filename,
+                     W_f=self.lstm_cell.W_f, b_f=self.lstm_cell.b_f,
+                     W_i=self.lstm_cell.W_i, b_i=self.lstm_cell.b_i,
+                     W_c=self.lstm_cell.W_c, b_c=self.lstm_cell.b_c,
+                     W_o=self.lstm_cell.W_o, b_o=self.lstm_cell.b_o,
+                     W_y=self.W_y, b_y=self.b_y)
+            print(f"Model saved to {filename}")
+
+    def load_model(self, filename="lstm_model.npz"):
+        data = np.load(filename)
+        self.lstm_cell.W_f = data['W_f']
+        self.lstm_cell.b_f = data['b_f']
+        self.lstm_cell.W_i = data['W_i']
+        self.lstm_cell.b_i = data['b_i']
+        self.lstm_cell.W_c = data['W_c']
+        self.lstm_cell.b_c = data['b_c']
+        self.lstm_cell.W_o = data['W_o']
+        self.lstm_cell.b_o = data['b_o']
+        self.W_y = data['W_y']
+        self.b_y = data['b_y']
+        print(f"Model loaded from {filename}")
+
+
         
 
 
