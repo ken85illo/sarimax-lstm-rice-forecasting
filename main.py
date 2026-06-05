@@ -87,9 +87,6 @@ class LSTMCell:
         self.W_o = scale * self.rng.normal(self.RNG_MEAN, self.RNG_STD_DEV, (hidden_size, hidden_size + input_size))
         self.b_o = scale * np.ones(hidden_size)
 
-        # self.W_y = scale * self.rng.normal(self.RNG_MEAN, self.RNG_STD_DEV, (input_size, hidden_size))
-        # self.b_y = scale * np.ones((hidden_size, 1))
-
 
     def forward_pass(self, x_t, h_prev, c_prev):
         # Storage for backpropagation
@@ -120,7 +117,17 @@ class LSTMCell:
 
         return self.h_t, self.c_t
     
-    def backward_pass(self, dh_next, dc_next, learning_rate, clip_value = 5.0):
+    def backward_pass(self, dh_next, dc_next, learning_rate, state=None, clip_value = 5.0):
+        if state is not None:
+            self.x_t = state['x_t']
+            self.h_prev = state['h_prev']
+            self.c_prev = state['c_prev']
+            self.f_t = state['f_t']
+            self.i_t = state['i_t']
+            self.c_tilde = state['c_tilde']
+            self.c_t = state['c_t']
+            self.o_t = state['o_t']
+
         # Gradient of the output gate
         do_t  = dh_next * tanh_function(self.c_t) * sigmoid_derivative(self.o_t)
 
@@ -146,15 +153,6 @@ class LSTMCell:
         df_t = np.clip(df_t, -clip_value, clip_value)
 
 
-        # print(f"c_prev: {self.c_prev}")
-        # print(f"dc_t: {dc_t}")
-        # print(f"df_t: {df_t}")
-        # print(f"X_t: {X_t}")
-        # print(f"X_t.T: {X_t.T}")
-        # Di pala gumagana yung Transpose sa 1D array kaya daw palitan ng np.outer
-
-        print(f"df_t shape: {df_t.shape}, X_t shape: {X_t.shape}")
-
         # Update weights and biases for forget gate
         self.W_f -= learning_rate * np.outer(df_t,X_t) # Transposed X_t
         self.b_f -= learning_rate * df_t
@@ -172,22 +170,18 @@ class LSTMCell:
         self.b_o -= learning_rate * do_t
         
         # Compute gradients with respect to inputs for backpropagation to earlier layers
-        dX_t  = np.zeros(self.input_size)
         dh_prev = np.zeros(self.hidden_size)
         dc_prev = dc_t * self.f_t
         
         # Gradient with respect to the concatenated input (h_prev and x_t)
         for i in range(self.hidden_size):
-            for j in range(self.input_size):
-                dX_t[j] += self.W_f[i, j] * df_t[i] + self.W_i[i, j] * di_t[i] + \
-                   self.W_c[i, j] * dc_tilde[i] + self.W_o[i, j] * do_t[i]
             for j in range(self.hidden_size):
                 dh_prev[j] += self.W_f[i, j + self.input_size] * df_t[i] + \
                             self.W_i[i, j + self.input_size] * di_t[i] + \
                             self.W_c[i, j + self.input_size] * dc_tilde[i] + \
                             self.W_o[i, j + self.input_size] * do_t[i] 
         
-        return dX_t, dh_prev, dc_prev
+        return dh_prev, dc_prev
 
 
 class LSTMNetwork:
@@ -219,10 +213,23 @@ class LSTMNetwork:
                 h = np.zeros(self.hidden_size)
                 c = np.zeros(self.hidden_size)
                 
-                # 2. Forward pass through the sequence length
+                # 2. Forward pass through the sequence length, saving each step for BPTT
+                states = []
                 for t in range(len(X_seq)):
                     x_t = X_seq[t] # 5 features
+                    h_prev = h
+                    c_prev = c
                     h, c = self.lstm_cell.forward_pass(x_t, h, c)
+                    states.append({
+                        'x_t': x_t,
+                        'h_prev': h_prev,
+                        'c_prev': c_prev,
+                        'f_t': self.lstm_cell.f_t,
+                        'i_t': self.lstm_cell.i_t,
+                        'c_tilde': self.lstm_cell.c_tilde,
+                        'c_t': self.lstm_cell.c_t,
+                        'o_t': self.lstm_cell.o_t,
+                    })
                 
                 # 3. Output layer calculation
                 self.y_pred = self.W_y @ h + self.b_y
@@ -239,9 +246,10 @@ class LSTMNetwork:
                 self.W_y -= self.learning_rate * np.outer(dy, h)
                 self.b_y -= self.learning_rate * dy
 
-                # 6. LSTM cell backpropagation
+                # 6. LSTM cell backpropagation through time
                 dc = np.zeros(self.hidden_size)
-                self.lstm_cell.backward_pass(dh, dc, self.learning_rate)
+                for state in reversed(states):
+                    dh, dc = self.lstm_cell.backward_pass(dh, dc, self.learning_rate, state=state)
                 
             # Average the loss across all samples in the dataset
             epoch_loss /= len(X_train)
