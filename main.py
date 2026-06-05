@@ -308,9 +308,18 @@ class LSTMNetwork:
             x_t = X_seq[t]
             h, c = self.lstm_cell.forward_pass(x_t, h, c)
 
-        output = self.W_y @ h + self.b_y
-            
-        return output
+        forecast = []
+        last_known = X_seq[-1].copy()  # shape (4,) — reuse as context
+
+        for _ in range(forecast_size):
+            h, c = self.lstm_cell.forward_pass(last_known, h, c)
+            y_pred = self.W_y @ h + self.b_y
+            forecast.append(y_pred[0])
+
+            # Only update the target feature (index 0), keep others fixed
+            last_known[0] = y_pred[0]
+
+        return np.array(forecast)
 
 
     def save_model(self, filename="lstm_model.npz"):
@@ -494,22 +503,15 @@ def test_prediction():
         input_seq = X_seq
         input_inverse_seq = scaler.inverse_transform(input_seq)
         actual = scaler.inverse_transform(y_actual)
-        predicted = scaler.inverse_transform(network.predict(input_seq))
+        predicted = scaler.inverse_transform(network.predict(input_seq, 5))
         print(f"Date: {date.date()}\nInput: {input_inverse_seq}\nActual: {actual}\nPredicted: {predicted}\n")
 
         if i == 5:
             break
 
-    
-    
-
-
-    
-
 if __name__ == "__main__":
     print(f"SANITY CHECK ON SYNTHETIC DATA ")
     test_overfitting()
-    
     test_prediction()
     
     # train_on_well_milled_high()
