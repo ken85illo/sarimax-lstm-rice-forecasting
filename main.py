@@ -10,7 +10,6 @@ def sigmoid_function(x):
 def tanh_function(x):
     return np.tanh(x)
 
-
 # Derivative of tanh function
 def tanh_derivative(x):
     t = np.tanh(x)
@@ -29,36 +28,16 @@ def mse_loss_derivative(y_pred, y_true):
 
 
 def create_sequences(data, lookback):
+    data = np.array(data)  # ← converts Series or list to numpy array
+
+    if data.ndim == 1:
+        data = data.reshape(-1, 1)
+
     X, y = [], []
     for i in range(lookback, len(data)):
-        X.append(data[i - lookback:i]) # (5 x 6)
-        y.append(data[i, 0]) # (1 x 1)
-    return np.array(X), np.array(y)        
-
-
-# class LSTM():
-#     def __init__(self, n_neurons):
-#         self.n_neurons = n_neurons
-#
-#         # Forget gate learnables
-#         self.Uf = 0.1 * np.random.randn(n_neurons, 1)
-#         self.bf = 0.1 * np.random.randn(n_neurons, 1)
-#         self.Wf = 0.1 * np.random.randn(n_neurons, n_neurons)
-#
-#         # Input gate learnables
-#         self.Ui = 0.1 * np.random.randn(n_neurons, 1)
-#         self.bi = 0.1 * np.random.randn(n_neurons, 1)
-#         self.Wi = 0.1 * np.random.randn(n_neurons, n_neurons)
-#
-#         # Output gate learnables
-#         self.Uo = 0.1 * np.random.randn(n_neurons, 1)
-#         self.bo = 0.1 * np.random.randn(n_neurons, 1)
-#         self.Wo = 0.1 * np.random.randn(n_neurons, n_neurons)
-#
-#         # C tilde learnables
-#         self.Ug = 0.1 * np.random.randn(n_neurons, 1)
-#         self.bg = 0.1 * np.random.randn(n_neurons, 1)
-#         self.Wg = 0.1 * np.random.randn(n_neurons, n_neurons)
+        X.append(data[i - lookback:i])
+        y.append(data[i, 0])
+    return np.array(X), np.array(y)
 
 class LSTMCell:
     RNG_MEAN = 0.0
@@ -95,6 +74,8 @@ class LSTMCell:
         self.h_prev = h_prev
         self.c_prev = c_prev
 
+        # print(f"h_prev: {h_prev}")
+        # print(f"X_t: {self.x_t}")
         # Concatenate h_prev (hidden state) and x_t (input at current time step)
         X_t = np.concatenate((self.h_prev, self.x_t), axis=0)
 
@@ -217,7 +198,7 @@ class LSTMNetwork:
                 # 2. Forward pass through the sequence length, saving each step for BPTT
                 states = []
                 for t in range(len(X_seq)):
-                    x_t = X_seq[t] # 5 features
+                    x_t = X_seq[t]
                     h_prev = h
                     c_prev = c
                     h, c = self.lstm_cell.forward_pass(x_t, h, c)
@@ -272,11 +253,11 @@ class LSTMNetwork:
                 val_loss /= len(X_val)
 
             # ── Logging ───────────────────────────────────────────────────────
-            if (epoch + 1) % 10 == 0 or epoch == 0:
-                if val_loss is not None:
-                    print(f"Epoch {epoch+1}/{self.epochs} | Train Loss: {epoch_loss:.6f} | Val Loss: {val_loss:.6f}")
-                else:
-                    print(f"Epoch {epoch+1}/{self.epochs} | Train Loss: {epoch_loss:.6f}")
+            # if (epoch + 1) % 10 == 0 or epoch == 0:
+            if val_loss is not None:
+                print(f"Epoch {epoch+1}/{self.epochs} | Train Loss: {epoch_loss:.6f} | Val Loss: {val_loss:.6f}")
+            else:
+                print(f"Epoch {epoch+1}/{self.epochs} | Train Loss: {epoch_loss:.6f}")
 
         return total_loss
 
@@ -315,10 +296,54 @@ class LSTMNetwork:
         self.b_y = data['b_y']
         print(f"Model loaded from {filename}")
 
+class MinMaxScaler:
+    def __init__(self):
+        self.min = None
+        self.max = None
+
+    def fit(self, data):
+        # Calculate min and max per feature
+        self.min = np.min(data, axis=0)
+        self.max = np.max(data, axis=0)
+        
+    def transform(self, data):
+        # Apply the formula: (x - min) / (max - min)
+        # We add a tiny epsilon to avoid division by zero
+        return (data - self.min) / (self.max - self.min + 1e-8)
+
+    def fit_transform(self, data):
+        self.fit(data)
+        return self.transform(data)
+
+    def inverse_transform(self, scaled_data):
+        # Useful for converting predictions back to original price scale
+        return scaled_data * (self.max - self.min + 1e-8) + self.min
+
+def train_on_residual_high():
+    # TODO: Specify your CSV file paths here
+    train_csv = pd.read_csv("sarimax_train_residuals_Well-Milled_High.csv")
+    val_csv = pd.read_csv("sarimax_val_residuals_Well-Milled_High.csv")
+    
+    df_train = train_csv["Well-Milled High_train_residual"]
+    df_val = val_csv["Well-Milled High_val_residual"]
+
+    scaler = MinMaxScaler()
+    scaled_df_train = scaler.fit_transform(df_train)
+    scaled_df_val = scaler.fit_transform(df_val.values)
+
+    # Create sequences (adjust lookback as needed)
+    lookback = 5
+    X_train, y_train = create_sequences(scaled_df_train, lookback)
+    X_val, y_val = create_sequences(scaled_df_val, lookback)
+    
+    # TODO: Instantiate and train your network
+    network = LSTMNetwork(input_size=1, hidden_size=64, output_size=1, learning_rate=0.1, epochs=200)
+    network.train(network, X_train, y_train, X_val, y_val)
+    network.save_model()
 
 def test_overfitting():
     # 1. Setup: 3 inputs, 2 hidden neurons, 1 output
-    network = LSTMNetwork(input_size=3, hidden_size=2, output_size=1, learning_rate=0.1, epochs=200)
+    network = LSTMNetwork(input_size=3, hidden_size=64, output_size=1, learning_rate=0.1, epochs=200)
     
     # 2. Dummy data: A single sequence of 5 time steps
     X_sample = np.random.randn(5, 3) # 5 steps, 3 features
@@ -343,5 +368,7 @@ def test_overfitting():
     print(f"Target: {y_sample}, Prediction: {final_pred}")
 
 if __name__ == "__main__":
+    print(f"SANITY CHECK ON SYNTHETIC DATA ")
+    train_on_residual_high()
     test_overfitting()
     
