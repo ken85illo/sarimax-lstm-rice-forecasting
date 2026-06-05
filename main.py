@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import math
 
 # Takes x and returns value between 0 and 1
@@ -203,7 +204,7 @@ class LSTMNetwork:
         # For backpropagation
         self.y_pred = []
     
-    def train(self, model, X_train, y_train):
+    def train(self, model, X_train, y_train, X_val=None, y_val=None):
         total_loss = 0.0
 
         for epoch in range(self.epochs):
@@ -255,9 +256,27 @@ class LSTMNetwork:
             epoch_loss /= len(X_train)
             total_loss = epoch_loss
 
-            # 7. Print progress
+            val_loss = None
+            if X_val is not None and y_val is not None:
+                val_loss = 0.0
+                for X_seq, y_true in zip(X_val, y_val):
+                    h = np.zeros(self.hidden_size)
+                    c = np.zeros(self.hidden_size)
+
+                    for t in range(len(X_seq)):
+                        h, c = self.lstm_cell.forward_pass(X_seq[t], h, c)
+
+                    y_pred = self.W_y @ h + self.b_y
+                    val_loss += mse_loss(y_pred, y_true)
+
+                val_loss /= len(X_val)
+
+            # ── Logging ───────────────────────────────────────────────────────
             if (epoch + 1) % 10 == 0 or epoch == 0:
-                print(f"Epoch {epoch + 1}/{self.epochs}, Loss: {epoch_loss:.6f}")
+                if val_loss is not None:
+                    print(f"Epoch {epoch+1}/{self.epochs} | Train Loss: {epoch_loss:.6f} | Val Loss: {val_loss:.6f}")
+                else:
+                    print(f"Epoch {epoch+1}/{self.epochs} | Train Loss: {epoch_loss:.6f}")
 
         return total_loss
 
@@ -309,12 +328,15 @@ def test_overfitting():
     X_train = [X_sample]
     y_train = [y_sample]
 
+    X_val = [X_sample]
+    y_val = [y_sample]
+
     print(X_train)
     print(y_train)
     
     #3. Train
     print("Starting sanity check (loss should decrease)...")
-    network.train(network, X_train, y_train)
+    network.train(network, X_train, y_train, X_val, y_val)
     
     #4. Predict
     final_pred = network.predict(X_sample[-1])
