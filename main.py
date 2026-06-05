@@ -300,14 +300,17 @@ class LSTMNetwork:
       self.b_y = best_weights['b_y']
 
 
-    def predict(self, features):
+    def predict(self, X_seq, forecast_size=1):
         h = np.zeros(self.hidden_size)
         c = np.zeros(self.hidden_size)
-
-        h, c = self.lstm_cell.forward_pass(features, h, c)
+    
+        for t in range(len(X_seq)):
+            x_t = X_seq[t]
+            h, c = self.lstm_cell.forward_pass(x_t, h, c)
 
         output = self.W_y @ h + self.b_y
-        return output[0]
+            
+        return output
 
 
     def save_model(self, filename="lstm_model.npz"):
@@ -357,6 +360,49 @@ class MinMaxScaler:
         # Useful for converting predictions back to original price scale
         return scaled_data * (self.max - self.min + 1e-8) + self.min
 
+def train_on_well_milled_high():
+    df_raw_rice = pd.read_csv("well_milled_rice_daily_preprocessed.csv")
+    df_raw_rice['Date'] = pd.to_datetime(df_raw_rice['Date'])
+    df_raw_rice = df_raw_rice.sort_values('Date').reset_index(drop=True)
+
+    # 70-20-10 split
+    train_split_count = 0.7
+    validation_split_count = 0.2
+
+    # Row split calculation for training - validation - testing
+    total_rows = len(df_raw_rice)
+
+    train_size = int(total_rows * train_split_count)
+    val_size = int(total_rows * validation_split_count)
+
+    # Split rice price data
+    train_val_rice_df = df_raw_rice.iloc[:train_size + val_size].copy()
+    train_rice_df = df_raw_rice.iloc[:train_size].copy()
+    val_rice_df = df_raw_rice.iloc[train_size : train_size + val_size].copy()
+
+    high_train_val_df = train_val_rice_df["Well-Milled High"]
+    high_train_df = train_rice_df["Well-Milled High"]
+    high_val_df = val_rice_df["Well-Milled High"]
+
+    # Fitting Min-Max Scaler
+    scaler = MinMaxScaler()
+    scaler.fit(high_train_val_df.values.reshape(-1, 1))
+
+    scaled_df_train = scaler.transform(high_train_df.values.reshape(-1, 1)) # Fit on training data
+    scaled_df_val = scaler.transform(high_val_df.values.reshape(-1, 1))     # Transform validation data using the fitted scaler
+
+    # Create sequences (adjust lookback as needed)
+    lookback = 14
+    X_train, y_train = create_sequences(scaled_df_train, lookback)
+    X_val, y_val = create_sequences(scaled_df_val, lookback)
+
+    # TODO: Instantiate and train your network
+    network = LSTMNetwork(input_size=1, hidden_size=64, output_size=1, learning_rate=0.1, epochs=200)
+    network.train( X_train, y_train, X_val, y_val, patience=20)
+    network.save_model()
+
+    
+
 def train_on_residual_high():
     # TODO: Specify your CSV file paths here
     # train_csv = pd.read_csv("sarimax_train_residuals_Well-Milled_High.csv")
@@ -403,21 +449,72 @@ def test_overfitting():
     #3. Train
     print("Starting sanity check (loss should decrease)...")
     network.train( X_train, y_train, X_val, y_val, patience=20)
+    print("\n\n===== FINISH TRAINING =====\n\n")
 
     #4. Predict
-    final_pred = network.predict(X_sample[-1])
+    final_pred = network.predict(X_sample)
     print(f"Target: {y_sample}, Prediction: {final_pred}")
 
-def load_testing():
+def test_prediction():
+    df_raw_rice = pd.read_csv("well_milled_rice_daily_preprocessed.csv")
+    df_raw_rice['Date'] = pd.to_datetime(df_raw_rice['Date'])
+    df_raw_rice = df_raw_rice.sort_values('Date').reset_index(drop=True)
+
+    # 70-20-10 split
+    train_split_count = 0.7
+    validation_split_count = 0.2
+
+    # Row split calculation for training - validation - testing
+    total_rows = len(df_raw_rice)
+
+    train_size = int(total_rows * train_split_count)
+    val_size = int(total_rows * validation_split_count)
+
+    # Split rice price data
+    scaler = MinMaxScaler()
+    train_val_rice_df = df_raw_rice.iloc[:train_size + val_size].copy()
+    high_train_val_df = train_val_rice_df["Well-Milled High"]
+    scaler.fit(high_train_val_df.values.reshape(-1, 1)) # Fit on training data
+
+    # Test Dataset and min-max transform
+    test_rice_df = df_raw_rice.iloc[train_size + val_size:].copy()
+    high_test_df = test_rice_df["Well-Milled High"]
+    scaled_df_test = scaler.transform(high_test_df.values.reshape(-1, 1)) # Fit on training data
+
+    # Parameters and sequence creation
+    lookback = 4
+    X_test, y_test = create_sequences(scaled_df_test, lookback)
+    test_dates = test_rice_df['Date'].iloc[lookback:].reset_index(drop=True)
+
     network = LSTMNetwork(input_size=1, hidden_size=64, output_size=1, learning_rate=0.1, epochs=200)
     network.load_model()
+
+    for i, (X_seq, y_actual) in enumerate(zip(X_test, y_test)):
+        date = test_dates.iloc[i]
+        input_seq = X_seq
+        input_inverse_seq = scaler.inverse_transform(input_seq)
+        actual = scaler.inverse_transform(y_actual)
+        predicted = scaler.inverse_transform(network.predict(input_seq))
+        print(f"Date: {date.date()}\nInput: {input_inverse_seq}\nActual: {actual}\nPredicted: {predicted}\n")
+
+        if i == 5:
+            break
+
+    
+    
+
+
     
 
 if __name__ == "__main__":
     print(f"SANITY CHECK ON SYNTHETIC DATA ")
     test_overfitting()
+    
+    test_prediction()
+    
+    # train_on_well_milled_high()
 
-    print(f"\nACTUAL")
-    train_on_residual_high()
+    # print(f"\nACTUAL")
+    # train_on_residual_high()
+    
 
-    load_testing()
