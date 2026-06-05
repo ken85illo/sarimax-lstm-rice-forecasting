@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import math
 
 # Takes x and returns value between 0 and 1
 def sigmoid_function(x):
@@ -50,7 +49,7 @@ class LSTMCell:
         self.hidden_size = hidden_size
 
         scale = 0.1
-        
+
         # Forget gate learnables
         self.W_f = scale * self.rng.normal(self.RNG_MEAN, self.RNG_STD_DEV, (hidden_size, hidden_size + input_size))
         self.b_f = scale * np.ones(hidden_size)
@@ -62,7 +61,7 @@ class LSTMCell:
         # C tilde learnables
         self.W_c = scale * self.rng.normal(self.RNG_MEAN, self.RNG_STD_DEV, (hidden_size, hidden_size + input_size))
         self.b_c = scale * np.ones(hidden_size)
-        
+
         # Output gate learnables
         self.W_o = scale * self.rng.normal(self.RNG_MEAN, self.RNG_STD_DEV, (hidden_size, hidden_size + input_size))
         self.b_o = scale * np.ones(hidden_size)
@@ -89,7 +88,7 @@ class LSTMCell:
         self.c_tilde = tanh_function((self.W_c @ X_t) + self.b_c)
 
         # New cell state calculation
-        self.c_t = self.i_t * self.c_tilde + self.f_t * self.c_prev 
+        self.c_t = self.i_t * self.c_tilde + self.f_t * self.c_prev
 
         # Output gate calculation
         self.o_t = sigmoid_function((self.W_o @ X_t) + self.b_o)
@@ -98,7 +97,7 @@ class LSTMCell:
         self.h_t = self.o_t * tanh_function(self.c_t)
 
         return self.h_t, self.c_t
-    
+
     def backward_pass(self, dh_next, dc_next, learning_rate, state=None, clip_value = 5.0):
         if state is not None:
             self.x_t = state['x_t']
@@ -114,7 +113,7 @@ class LSTMCell:
         do_t  = dh_next * tanh_function(self.c_t) * sigmoid_derivative(self.o_t)
 
         # Gradient of the cell state
-        dc_t = dh_next * self.o_t * tanh_derivative(self.c_t) + dc_next   
+        dc_t = dh_next * self.o_t * tanh_derivative(self.c_t) + dc_next
 
         # Gradient of the input gate
         di_t = dc_t * self.c_tilde * sigmoid_derivative(self.i_t)
@@ -150,19 +149,16 @@ class LSTMCell:
         # Update weights and biases for output gate
         self.W_o -= learning_rate * np.outer(do_t, X_t) # Transposed X_t
         self.b_o -= learning_rate * do_t
-        
+
         # Compute gradients with respect to inputs for backpropagation to earlier layers
-        dh_prev = np.zeros(self.hidden_size)
+        # Optimized dh_prev calculation using vectorized operations
+        dh_prev = self.W_f[:, :self.hidden_size].T @ df_t + \
+                  self.W_i[:, :self.hidden_size].T @ di_t + \
+                  self.W_c[:, :self.hidden_size].T @ dc_tilde + \
+                  self.W_o[:, :self.hidden_size].T @ do_t
+
         dc_prev = dc_t * self.f_t
-        
-        # Gradient with respect to the concatenated input (h_prev and x_t)
-        for i in range(self.hidden_size):
-            for j in range(self.hidden_size):
-                dh_prev[j] += self.W_f[i, j + self.input_size] * df_t[i] + \
-                            self.W_i[i, j + self.input_size] * di_t[i] + \
-                            self.W_c[i, j + self.input_size] * dc_tilde[i] + \
-                            self.W_o[i, j + self.input_size] * do_t[i] 
-        
+
         return dh_prev, dc_prev
 
 
@@ -184,17 +180,22 @@ class LSTMNetwork:
 
         # For backpropagation
         self.y_pred = []
-    
-    def train(self, model, X_train, y_train, X_val=None, y_val=None):
+
+    def train(self, X_train, y_train, X_val=None, y_val=None, patience = 10):
         total_loss = 0.0
+
+        best_val_loss = float('inf')
+        best_weights = None
+        epochs_no_improve = 0
 
         for epoch in range(self.epochs):
             epoch_loss = 0.0
+
             for X_seq, y_true in zip(X_train, y_train):
                 # 1. Initialize cell and hidden states for the start of the sequence
                 h = np.zeros(self.hidden_size)
                 c = np.zeros(self.hidden_size)
-                
+
                 # 2. Forward pass through the sequence length, saving each step for BPTT
                 states = []
                 for t in range(len(X_seq)):
@@ -212,7 +213,7 @@ class LSTMNetwork:
                         'c_t': self.lstm_cell.c_t,
                         'o_t': self.lstm_cell.o_t,
                     })
-                
+
                 # 3. Output layer calculation
                 self.y_pred = self.W_y @ h + self.b_y
 
@@ -220,10 +221,10 @@ class LSTMNetwork:
                 loss = mse_loss(self.y_pred, y_true)
                 epoch_loss += loss
                 dy = mse_loss_derivative(self.y_pred, y_true)
-                
+
                 # 5. Backpropagation: Output layer gradients
                 dh = self.W_y.T @ dy
-                
+
                 # Update output layer weights and biases using gradient descent
                 self.W_y -= self.learning_rate * np.outer(dy, h)
                 self.b_y -= self.learning_rate * dy
@@ -232,7 +233,7 @@ class LSTMNetwork:
                 dc = np.zeros(self.hidden_size)
                 for state in reversed(states):
                     dh, dc = self.lstm_cell.backward_pass(dh, dc, self.learning_rate, state=state)
-                
+
             # Average the loss across all samples in the dataset
             epoch_loss /= len(X_train)
             total_loss = epoch_loss
@@ -252,16 +253,53 @@ class LSTMNetwork:
 
                 val_loss /= len(X_val)
 
-            # ── Logging ───────────────────────────────────────────────────────
+                # Early stopping
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    epochs_no_improve = 0
+                    # Save best weights
+                    best_weights = {
+                        'W_f': self.lstm_cell.W_f.copy(), 'b_f': self.lstm_cell.b_f.copy(),
+                        'W_i': self.lstm_cell.W_i.copy(), 'b_i': self.lstm_cell.b_i.copy(),
+                        'W_c': self.lstm_cell.W_c.copy(), 'b_c': self.lstm_cell.b_c.copy(),
+                        'W_o': self.lstm_cell.W_o.copy(), 'b_o': self.lstm_cell.b_o.copy(),
+                        'W_y': self.W_y.copy(),           'b_y': self.b_y.copy(),
+                    }
+                else:
+                    epochs_no_improve += 1
+                    if epochs_no_improve >= patience:
+                        print(f"Early stopping at epoch {epoch+1} | Best Val Loss: {best_val_loss:.6f}")
+                        # Restore best weights before returning
+                        self._restore_weights(best_weights)
+                        return total_loss
+
+            # ── Logging ─────────────────────────────
             # if (epoch + 1) % 10 == 0 or epoch == 0:
             if val_loss is not None:
                 print(f"Epoch {epoch+1}/{self.epochs} | Train Loss: {epoch_loss:.6f} | Val Loss: {val_loss:.6f}")
             else:
                 print(f"Epoch {epoch+1}/{self.epochs} | Train Loss: {epoch_loss:.6f}")
 
+        # If we never early stopped, still restore best weights seen during training
+        if best_weights is not None:
+            self._restore_weights(best_weights)
+
         return total_loss
 
-    
+
+    def _restore_weights(self, best_weights):
+      self.lstm_cell.W_f = best_weights['W_f']
+      self.lstm_cell.b_f = best_weights['b_f']
+      self.lstm_cell.W_i = best_weights['W_i']
+      self.lstm_cell.b_i = best_weights['b_i']
+      self.lstm_cell.W_c = best_weights['W_c']
+      self.lstm_cell.b_c = best_weights['b_c']
+      self.lstm_cell.W_o = best_weights['W_o']
+      self.lstm_cell.b_o = best_weights['b_o']
+      self.W_y = best_weights['W_y']
+      self.b_y = best_weights['b_y']
+
+
     def predict(self, features):
         h = np.zeros(self.hidden_size)
         c = np.zeros(self.hidden_size)
@@ -305,7 +343,7 @@ class MinMaxScaler:
         # Calculate min and max per feature
         self.min = np.min(data, axis=0)
         self.max = np.max(data, axis=0)
-        
+
     def transform(self, data):
         # Apply the formula: (x - min) / (max - min)
         # We add a tiny epsilon to avoid division by zero
@@ -321,34 +359,37 @@ class MinMaxScaler:
 
 def train_on_residual_high():
     # TODO: Specify your CSV file paths here
+    # train_csv = pd.read_csv("sarimax_train_residuals_Well-Milled_High.csv")
+    # val_csv = pd.read_csv("sarimax_val_residuals_Well-Milled_High.csv")
+
     train_csv = pd.read_csv("sarimax_train_residuals_Well-Milled_High.csv")
     val_csv = pd.read_csv("sarimax_val_residuals_Well-Milled_High.csv")
-    
+
     df_train = train_csv["Well-Milled High_train_residual"]
     df_val = val_csv["Well-Milled High_val_residual"]
 
     scaler = MinMaxScaler()
-    scaled_df_train = scaler.fit_transform(df_train)
-    scaled_df_val = scaler.fit_transform(df_val.values)
+    scaled_df_train = scaler.fit_transform(df_train.values.reshape(-1, 1)) # Fit on training data
+    scaled_df_val = scaler.transform(df_val.values.reshape(-1, 1))     # Transform validation data using the fitted scaler
 
     # Create sequences (adjust lookback as needed)
     lookback = 5
     X_train, y_train = create_sequences(scaled_df_train, lookback)
     X_val, y_val = create_sequences(scaled_df_val, lookback)
-    
+
     # TODO: Instantiate and train your network
     network = LSTMNetwork(input_size=1, hidden_size=64, output_size=1, learning_rate=0.1, epochs=200)
-    network.train(network, X_train, y_train, X_val, y_val)
+    network.train( X_train, y_train, X_val, y_val, patience=20)
     network.save_model()
 
 def test_overfitting():
     # 1. Setup: 3 inputs, 2 hidden neurons, 1 output
     network = LSTMNetwork(input_size=3, hidden_size=64, output_size=1, learning_rate=0.1, epochs=200)
-    
+
     # 2. Dummy data: A single sequence of 5 time steps
     X_sample = np.random.randn(5, 3) # 5 steps, 3 features
     y_sample = np.array([0.8])       # Target
-    
+
     # Wrap in list so it matches the expected iterable structure
     X_train = [X_sample]
     y_train = [y_sample]
@@ -358,17 +399,25 @@ def test_overfitting():
 
     print(X_train)
     print(y_train)
-    
+
     #3. Train
     print("Starting sanity check (loss should decrease)...")
-    network.train(network, X_train, y_train, X_val, y_val)
-    
+    network.train( X_train, y_train, X_val, y_val, patience=20)
+
     #4. Predict
     final_pred = network.predict(X_sample[-1])
     print(f"Target: {y_sample}, Prediction: {final_pred}")
 
+def load_testing():
+    network = LSTMNetwork(input_size=1, hidden_size=64, output_size=1, learning_rate=0.1, epochs=200)
+    network.load_model()
+    
+
 if __name__ == "__main__":
     print(f"SANITY CHECK ON SYNTHETIC DATA ")
-    train_on_residual_high()
     test_overfitting()
-    
+
+    print(f"\nACTUAL")
+    train_on_residual_high()
+
+    load_testing()
