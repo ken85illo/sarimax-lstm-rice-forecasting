@@ -153,6 +153,8 @@ class LSTMCell:
         # print(f"X_t.T: {X_t.T}")
         # Di pala gumagana yung Transpose sa 1D array kaya daw palitan ng np.outer
 
+        print(f"df_t shape: {df_t.shape}, X_t shape: {X_t.shape}")
+
         # Update weights and biases for forget gate
         self.W_f -= learning_rate * np.outer(df_t,X_t) # Transposed X_t
         self.b_f -= learning_rate * df_t
@@ -170,9 +172,9 @@ class LSTMCell:
         self.b_o -= learning_rate * do_t
         
         # Compute gradients with respect to inputs for backpropagation to earlier layers
-        dX_t  = np.zeros((self.input_size, 1))
-        dh_prev = np.zeros((self.hidden_size, 1))
-        dc_prev = np.zeros((self.hidden_size, 1))
+        dX_t  = np.zeros(self.input_size)
+        dh_prev = np.zeros(self.hidden_size)
+        dc_prev = dc_t * self.f_t
         
         # Gradient with respect to the concatenated input (h_prev and x_t)
         for i in range(self.hidden_size):
@@ -217,7 +219,6 @@ class LSTMNetwork:
                 h = np.zeros(self.hidden_size)
                 c = np.zeros(self.hidden_size)
                 
-
                 # 2. Forward pass through the sequence length
                 for t in range(len(X_seq)):
                     x_t = X_seq[t] # 5 features
@@ -264,14 +265,14 @@ class LSTMNetwork:
 
 
     def save_model(self, filename="lstm_model.npz"):
-            # We save all learnable parameters into a single .npz file
-            np.savez(filename,
-                     W_f=self.lstm_cell.W_f, b_f=self.lstm_cell.b_f,
-                     W_i=self.lstm_cell.W_i, b_i=self.lstm_cell.b_i,
-                     W_c=self.lstm_cell.W_c, b_c=self.lstm_cell.b_c,
-                     W_o=self.lstm_cell.W_o, b_o=self.lstm_cell.b_o,
-                     W_y=self.W_y, b_y=self.b_y)
-            print(f"Model saved to {filename}")
+        # We save all learnable parameters into a single .npz file
+        np.savez(filename,
+                 W_f=self.lstm_cell.W_f, b_f=self.lstm_cell.b_f,
+                 W_i=self.lstm_cell.W_i, b_i=self.lstm_cell.b_i,
+                 W_c=self.lstm_cell.W_c, b_c=self.lstm_cell.b_c,
+                 W_o=self.lstm_cell.W_o, b_o=self.lstm_cell.b_o,
+                 W_y=self.W_y, b_y=self.b_y)
+        print(f"Model saved to {filename}")
 
     def load_model(self, filename="lstm_model.npz"):
         data = np.load(filename)
@@ -286,9 +287,6 @@ class LSTMNetwork:
         self.W_y = data['W_y']
         self.b_y = data['b_y']
         print(f"Model loaded from {filename}")
-
-
-        
 
 
 def test_overfitting():
