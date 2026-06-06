@@ -18,13 +18,13 @@ def train_on_residual_high():
     scaled_df_train = scaler.transform(df_train.values.reshape(-1, 1)) # Fit on training data
     scaled_df_val = scaler.transform(df_val.values.reshape(-1, 1))     # Transform validation data using the fitted scaler
 
-    # Create sequences (adjust lookback as needed)
+    # Create sequences
     lookback = 14
     X_train, y_train = create_sequences(scaled_df_train, lookback)
     X_val, y_val = create_sequences(scaled_df_val, lookback)
 
     # TODO: Instantiate and train your network
-    network = LSTMNetwork(input_size=1, hidden_size=64, output_size=1, learning_rate=0.1, epochs=150)
+    network = LSTMNetwork(input_size=1, hidden_size=128, output_size=1, learning_rate=0.001, epochs=150)
     network.train( X_train, y_train, X_val, y_val, patience=20)
     network.save_model(target="high")
 
@@ -41,16 +41,14 @@ def train_on_residual_low():
     scaled_df_train = scaler.transform(df_train.values.reshape(-1, 1)) # Fit on training data
     scaled_df_val = scaler.transform(df_val.values.reshape(-1, 1))     # Transform validation data using the fitted scaler
 
-    # Create sequences (adjust lookback as needed)
+    # Create sequences
     lookback = 14
     X_train, y_train = create_sequences(scaled_df_train, lookback)
     X_val, y_val = create_sequences(scaled_df_val, lookback)
 
     # TODO: Instantiate and train your network
-    network = LSTMNetwork(network, input_size=1, hidden_size=64, output_size=1, learning_rate=0.1, epochs=150)
-    
+    network = LSTMNetwork(input_size=1, hidden_size=64, output_size=1, learning_rate=0.001, epochs=150)
     network.train(X_train, y_train, X_val, y_val, patience=20)
-    
     network.save_model(target="low")
 
 def load_sarimax_model(model_name: str):
@@ -80,7 +78,6 @@ def example_sarimax_usage():
     # Load the models
     model_high = load_sarimax_model('high')
     model_low = load_sarimax_model('low')
-    steps = 14
 
     if model_high is None or model_low is None:
         print("Could not load one or more SARIMAX models. Exiting example.")
@@ -93,23 +90,65 @@ def example_sarimax_usage():
     df_rice = pd.read_csv("datasets/well_milled_rice_daily_preprocessed.csv", parse_dates=['Date'], index_col='Date')
     df_test_rice_high = df_rice["Well-Milled High"][(df_rice["Well-Milled High"].index >= '2025-08-28')]
     df_test_rice_low = df_rice["Well-Milled Low"][(df_rice["Well-Milled Low"].index >= '2025-08-28')]
-
-    # TEMPORARY TO FIX LAST 14 DAYS OF VALIDATION SET
-    rice_final_refit_high = df_test_rice_high.loc['2025-08-28':'2025-09-10']
-    rice_final_refit_low = df_test_rice_low.loc['2025-08-28':'2025-09-10']
-    enso_final_refit = df_test_enso.loc['2025-08-28':'2025-09-10']
-
-    model_high = model_high.append(rice_final_refit_high, exog=enso_final_refit, refit=True)
-    model_low = model_low.append(rice_final_refit_low, exog=enso_final_refit, refit=True)
-
-    current_date = rice_final_refit_high.index.max() + pd.Timedelta(days=1)
+    
+    current_date = pd.to_datetime('2025-09-11')
     end_date = df_test_rice_high.index.max()
 
-    model_high = forecast_rolling_walk_forward(model_high, df_test_rice_high, df_test_enso, current_date, end_date)
-    model_low = forecast_rolling_walk_forward(model_low, df_test_rice_low, df_test_enso, current_date, df_test_rice_low.index.max())
+    model_high, resid_high = forecast_rolling_walk_forward(model_high, df_test_rice_high, df_test_enso, current_date, end_date)
+    lstm_predict("high", 14, resid_high)
+
+    # model_low, resid_low = forecast_rolling_walk_forward(model_low, df_test_rice_low, df_test_enso, current_date, end_date)
+
+def lstm_predict(target, lookback, resid):
+    network = LSTMNetwork( input_size=1, hidden_size=128, output_size=1, learning_rate=0.001, epochs=150)
+    network.load_model(target)
+
+    train_csv = pd.read_csv("datasets/sarimax_train_residuals_Well-Milled_High.csv")
+    val_csv = pd.read_csv("datasets/sarimax_val_residuals_Well-Milled_High.csv")
+
+    df_train = train_csv["Well-Milled High_train_residual"]
+    df_val = val_csv["Well-Milled High_val_residual"]
+    df_train_val = pd.concat([df_train, df_val], ignore_index=True)
+
+    scaler = MinMaxScaler()
+    scaler.fit(df_train_val.values.reshape(-1, 1))
+    print(f"{scaler.min} {scaler.max}")
     
+    val_csv = val_csv.rename(columns={"Well-Milled High_val_residual": "residuals"})
+    if "Date" in val_csv.columns:
+        val_csv = val_csv.set_index("Date")
+
+    val_csv.index = pd.to_datetime(val_csv.index)
+    df_test_resid = pd.concat([val_csv[len(val_csv) - lookback:], resid])["residuals"]
+    scaled_test_resid = scaler.transform(df_test_resid.values.reshape(-1, 1))
+    resid_dates = df_test_resid.index
+
+    X_test, _ = create_sequences(scaled_test_resid, lookback)
+
+    for i in range(0, len(X_test), lookback): 
+        X_seq = X_test[i]
+        date = resid_dates[i]
+
+        input_seq = X_seq
+        input_inverse_seq = scaler.inverse_transform(input_seq)
+        predicted = scaler.inverse_transform(network.predict(input_seq, lookback).reshape(-1, 1))
+
+        print(f"Date: {date.date()}\nInput:")
+        for j in range(len(input_inverse_seq)):
+            last_date = resid_dates[i + j]
+            print(f"{input_inverse_seq[j]} => {last_date}")
+
+        print(f"Predicted:")
+        for j in range(1, len(predicted) + 1):
+            forecast_date = last_date + pd.Timedelta(days=j)            
+            print(f"{predicted[j - 1]} => {forecast_date}")
+
+        print()
 
 def forecast_rolling_walk_forward(model, endog_dataset, exog_dataset, current_date, end_date, steps=14):
+    forecasts = []
+    fc_indices = []
+    start_date = current_date
     while current_date <= end_date:
         forecast_end = min(current_date + pd.Timedelta(days=steps - 1), end_date)
         
@@ -118,20 +157,29 @@ def forecast_rolling_walk_forward(model, endog_dataset, exog_dataset, current_da
         exog_forecast = exog_dataset.loc[exog_start:current_date - pd.Timedelta(days=1)]
         
         forecast = predict_sarimax(model, exog_data=exog_forecast)
-        if forecast is not None:
-            print(f"\nForecast from {current_date.date()} (using ENSO {exog_start.date()} to {(current_date - pd.Timedelta(days=1)).date()}):")
-            print(forecast.head(steps))
+        # if forecast is not None:
+        #     print(f"\nForecast from {current_date.date()} (using ENSO {exog_start.date()} to {(current_date - pd.Timedelta(days=1)).date()}):")
+        #     print(forecast.head(steps))
 
         # Refit on the forecasted 14 days
         endog_update = endog_dataset.loc[current_date:forecast_end]
         exog_update = exog_dataset.loc[current_date:forecast_end]
         
+        forecasts.extend(forecast.values)
+        fc_indices.extend(endog_dataset.loc[current_date: forecast_end].index.tolist())
+    
         if len(endog_update) > 0:
             model = model.append(endog_update, exog=exog_update, refit=True)
         
         current_date = forecast_end + pd.Timedelta(days=1)
+    
+    forecasts = np.array(forecasts)
+    forecast_test = pd.Series(forecasts[:len(fc_indices), 0], index=fc_indices)
 
-    return model
+    resid = endog_dataset[start_date:] - forecast_test
+    resid = pd.DataFrame(resid, columns=["residuals"], index=fc_indices)
+
+    return model, resid
 
 if __name__ == "__main__":
     example_sarimax_usage()

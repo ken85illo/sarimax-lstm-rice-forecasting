@@ -104,8 +104,6 @@ def test_prediction():
 
         print()
 
-        if i // lookback == 10:
-            break
 
 
 

@@ -21,4 +21,4 @@ class MinMaxScaler:
 
     def inverse_transform(self, scaled_data):
         # Useful for converting predictions back to original price scale
-        return scaled_data * (self.max - self.min + 1e-8) + self.min
+        return scaled_data * (self.max - self.min) + self.min

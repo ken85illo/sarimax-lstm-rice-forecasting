@@ -1,5 +1,6 @@
 import numpy as np
 from lstm_cell import LSTMCell
+from min_max_scaler import MinMaxScaler
 from utils import mse_loss, mse_loss_derivative
 
 class LSTMNetwork:
