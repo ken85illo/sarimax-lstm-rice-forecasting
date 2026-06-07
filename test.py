@@ -9,27 +9,59 @@ LOOKBACK = 14
 HORIZON = 14
 HIDDEN_SIZE = 64
 
+def get_trends_df():
+    trends_csv = pd.read_csv("datasets/combined_google_trends_dataset.csv")
+    trends_csv = trends_csv[:2312] # same size as rice dataset
+    trends_csv['Day'] = pd.to_datetime(trends_csv['Day'])
+    trends_csv = trends_csv.set_index('Day')
+
+    # 70-20-10 split
+    train_split_count = 0.7
+    validation_split_count = 0.2
+
+    # Row split calculation for training - validation - testing
+    total_rows = len(trends_csv)
+
+    train_size = int(total_rows * train_split_count)
+    val_size = int(total_rows * validation_split_count)
+
+    print(f"Train + Val Start: {trends_csv.index[0]}\nTrain + Val End: {trends_csv.index[train_size + val_size - 1]}")
+
+    df_train = trends_csv.iloc[:train_size]["Google Trends"]
+    df_val = trends_csv.iloc[train_size:train_size + val_size]["Google Trends"]
+    df_test = trends_csv.iloc[train_size + val_size:]["Google Trends"]
+
+    return df_train, df_val, df_test
+
+
 def train_on_residual_high():
     train_csv = pd.read_csv("datasets/sarimax_train_residuals_Well-Milled_High.csv")
     val_csv = pd.read_csv("datasets/sarimax_val_residuals_Well-Milled_High.csv")
 
-    df_train = train_csv["Well-Milled High_train_residual"]
-    df_val = val_csv["Well-Milled High_val_residual"]
+    df_rice_train = train_csv["Well-Milled High_train_residual"]
+    df_rice_val = val_csv["Well-Milled High_val_residual"]
+
+    df_trends_train, df_trends_val, _ = get_trends_df()
 
     scaler = MinMaxScaler()
-    scaled_df_train = scaler.fit_transform(df_train.values.reshape(-1, 1)) # Fit on training data
-    scaled_df_val = scaler.transform(df_val.values.reshape(-1, 1))     # Transform validation data using the fitted scaler
-    scaler.save_scaler("high")
 
     # Create sequences
     lookback = LOOKBACK
     horizon = HORIZON
+
+    df_train = list(zip(df_rice_train, df_trends_train))
+    df_val = list(zip(df_rice_val, df_trends_val))
+
+    scaled_df_train = scaler.fit_transform(df_train) # Fit on training data
+    scaled_df_val = scaler.transform(df_val)     # Transform validation data using the fitted scaler
+    scaler.save_scaler("high")
+
     X_train, y_train = create_sequences_multistep(scaled_df_train, lookback, horizon)
     X_val, y_val = create_sequences_multistep(scaled_df_val, lookback, horizon)
 
     # TODO: Instantiate and train your network
-    network = LSTMNetwork(input_size=1, hidden_size=HIDDEN_SIZE, output_size=horizon, learning_rate=0.001, epochs=300)
-    network.train( X_train, y_train, X_val, y_val, patience=20)
+    network = LSTMNetwork(input_size=2, hidden_size=HIDDEN_SIZE, output_size=horizon, learning_rate=0.001, epochs=300)
+    network.train(X_train, y_train, X_val, y_val, patience=20)
     network.save_model(target="high")
 
 def train_on_residual_low():
@@ -132,24 +164,38 @@ def example_sarimax_usage():
 
     # model_low, resid_low = forecast_rolling_walk_forward(model_low, df_test_rice_low, df_test_enso, current_date, end_date)
 
+
+def get_price_scaler(scaler):
+    price_scaler = MinMaxScaler()
+    price_scaler.min = scaler.min[0]
+    price_scaler.max = scaler.max[0]
+
+    return price_scaler
+
+
 def lstm_predict(target, lookback, resid, col_train, col_val):
-    network = LSTMNetwork(input_size=1, hidden_size=HIDDEN_SIZE, output_size=14, learning_rate=0.001, epochs=150)
+    network = LSTMNetwork(input_size=1, hidden_size=HIDDEN_SIZE, output_size=HORIZON, learning_rate=0.001, epochs=150)
     network.load_model(target)
 
     val_csv = pd.read_csv("datasets/sarimax_val_residuals_Well-Milled_High.csv")
 
     scaler = MinMaxScaler()
     scaler.load_scaler(target)
+    price_scaler = get_price_scaler(scaler)
     
+    _, df_trends_val, df_trends_test = get_trends_df()
     val_csv = val_csv.rename(columns={f"{col_val}": "residuals"})
     if "Date" in val_csv.columns:
         val_csv = val_csv.set_index("Date")
 
     val_csv.index = pd.to_datetime(val_csv.index)
     df_test_resid = pd.concat([val_csv[len(val_csv) - lookback:], resid])["residuals"]
-    scaled_test_resid = scaler.transform(df_test_resid.values.reshape(-1, 1))
+    df_trends_test = pd.concat([df_trends_val[len(df_trends_val) - lookback:]])
 
-    X_test = split_by_chunks(scaled_test_resid, LOOKBACK)
+    feature_df = list(zip(df_test_resid, df_trends_test))
+    scaled_feature_df = scaler.transform(feature_df)
+
+    X_test = split_by_chunks(scaled_feature_df, LOOKBACK)
     resid_dates = split_by_chunks(df_test_resid.index, LOOKBACK)
 
     forecasts = []
@@ -157,7 +203,8 @@ def lstm_predict(target, lookback, resid, col_train, col_val):
     for X_seq, date in zip(X_test, resid_dates): 
         input_seq = X_seq
         input_inverse_seq = scaler.inverse_transform(input_seq)
-        predicted = scaler.inverse_transform(network.predict(input_seq).reshape(-1, 1)) 
+        predicted = price_scaler.inverse_transform(network.predict(input_seq).reshape(-1, 1))
+        len(f"predicted: {predicted}")
 
         print(f"Date: {date[0].date()}\nInput:")
         for j in range(len(input_inverse_seq)):
@@ -212,5 +259,5 @@ def forecast_rolling_walk_forward(model, endog_dataset, exog_dataset, current_da
     return model, resid, forecast_series
 
 if __name__ == "__main__":
-    train_on_residual_high()
+    # train_on_residual_high()
     example_sarimax_usage()

@@ -41,7 +41,7 @@ class LSTMNetwork:
                 # 1. Initialize cell and hidden states for the start of the sequence
                 h = np.zeros(self.hidden_size)
                 c = np.zeros(self.hidden_size)
-
+                
                 # 2. Forward pass through the sequence length, saving each step for BPTT
                 states = []
                 for t in range(len(X_seq)):

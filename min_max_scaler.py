@@ -6,11 +6,14 @@ class MinMaxScaler:
         self.max = None
 
     def fit(self, data):
+        data = np.array(data)
         # Calculate min and max per feature
-        self.min = np.min(data, axis=0)
+        self.min = np.min(data, axis=0) 
         self.max = np.max(data, axis=0)
 
     def transform(self, data):
+        data = np.array(data)
+
         # Apply the formula: (x - min) / (max - min)
         return (data - self.min) / (self.max - self.min)
 
@@ -19,6 +22,8 @@ class MinMaxScaler:
         return self.transform(data)
 
     def inverse_transform(self, scaled_data):
+        scaled_data = np.array(scaled_data)
+
         # Useful for converting predictions back to original price scale
         return scaled_data * (self.max - self.min) + self.min
 

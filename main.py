@@ -15,6 +15,7 @@ def test_overfitting():
 
     # Wrap in list so it matches the expected iterable structure
     X_train = [X_sample]
+    print(X_train)
     y_train = [y_sample]
 
     X_val = [X_sample]
@@ -107,7 +108,8 @@ def test_prediction():
 
 
 if __name__ == "__main__":
-    test_prediction()
+    # test_prediction()
+    test_overfitting()
 
     
 
