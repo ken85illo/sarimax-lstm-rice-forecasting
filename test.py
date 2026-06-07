@@ -139,7 +139,7 @@ def lstm_predict(target, lookback, resid, col_train, col_val):
     val_csv = pd.read_csv("datasets/sarimax_val_residuals_Well-Milled_High.csv")
 
     scaler = MinMaxScaler()
-    scaler.load_scaler("high")
+    scaler.load_scaler(target)
     
     val_csv = val_csv.rename(columns={f"{col_val}": "residuals"})
     if "Date" in val_csv.columns:
