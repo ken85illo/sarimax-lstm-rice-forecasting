@@ -82,14 +82,6 @@ class LSTMNetwork:
                 for state in reversed(states):
                     dh, dc = self.lstm_cell.backward_pass(dh, dc, self.learning_rate, state=state)
 
-            #     print(f"dy norm: {np.linalg.norm(dy):.8f}")
-            #     print(f"dh norm: {np.linalg.norm(dh):.8f}")
-            #     print(f"W_y grad norm: {np.linalg.norm(np.outer(dy, h)):.8f}")
-            #     print(f"y_pred: {self.y_pred}")
-            #     print(f"y_true: {y_true}")
-            #     break
-            #
-            # break
             # Average the loss across all samples in the dataset
             epoch_loss /= len(X_train)
             total_loss = epoch_loss

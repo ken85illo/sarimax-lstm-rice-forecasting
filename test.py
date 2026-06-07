@@ -14,7 +14,7 @@ def train_on_residual_high():
     df_train_val = pd.concat([df_train, df_val], ignore_index=True)
 
     scaler = MinMaxScaler()
-    scaled_df_train = scaler.fit_transform(df_train.values.reshape(-1, 1)) # Fit on training data
+    scaled_df_train = scaler.fit_transform(df_train_val.values.reshape(-1, 1)) # Fit on training data
     scaled_df_val = scaler.transform(df_val.values.reshape(-1, 1))     # Transform validation data using the fitted scaler
 
     # Create sequences
@@ -23,11 +23,6 @@ def train_on_residual_high():
     X_train, y_train = create_sequences_multistep(scaled_df_train, lookback, horizon)
     X_val, y_val = create_sequences_multistep(scaled_df_val, lookback, horizon)
 
-    # print(f"y_train min: {y_train.min():.4f}, max: {y_train.max():.4f}, mean: {y_train.mean():.4f}")
-    # print(f"X_train min: {X_train.min():.4f}, max: {X_train.max():.4f}")
-    #
-    # print(f"y_val min: {y_val.min():.4f}, max: {y_val.max():.4f}, mean: {y_val.mean():.4f}")
-    # print(f"X_val min: {X_val.min():.4f}, max: {X_val.max():.4f}")
     # TODO: Instantiate and train your network
     network = LSTMNetwork(input_size=1, hidden_size=64, output_size=horizon, learning_rate=0.001, epochs=300)
     network.train( X_train, y_train, X_val, y_val, patience=20)
@@ -181,5 +176,5 @@ def forecast_rolling_walk_forward(model, endog_dataset, exog_dataset, current_da
     return model, resid
 
 if __name__ == "__main__":
-    # train_on_residual_high()
+    train_on_residual_high()
     example_sarimax_usage()

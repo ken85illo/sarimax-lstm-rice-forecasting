@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from lstm_network import LSTMNetwork
 from min_max_scaler import MinMaxScaler
-from utils import create_sequences
+from utils import create_sequences, create_sequences_multistep
 from min_max_scaler import MinMaxScaler
 
 def test_overfitting():
@@ -61,9 +61,10 @@ def test_prediction():
     scaled_df_val = scaler.transform(df_val.values.reshape(-1, 1))     # Transform validation data using the fitted scaler
 
     # Create sequences (adjust lookback as needed)
+    horizon = 14
     lookback = 14
-    X_train, y_train = create_sequences(scaled_df_train, lookback)
-    X_val, y_val = create_sequences(scaled_df_val, lookback)
+    X_train, y_train = create_sequences_multistep(scaled_df_train, lookback, horizon)
+    X_val, y_val = create_sequences_multistep(scaled_df_val, lookback, horizon)
 
     # Test Dataset and min-max transform
     test_rice_df = df_raw_rice.iloc[train_size + val_size - lookback:].copy()
@@ -71,12 +72,12 @@ def test_prediction():
     scaled_df_test = scaler.transform(high_test_df.values.reshape(-1, 1)) # Fit on training data
     
     # Parameters and sequence creation
-    lookback = 14
-    X_test, y_test = create_sequences(scaled_df_test, lookback)
+    X_test, y_test = create_sequences_multistep(scaled_df_test, lookback, horizon)
     test_dates = test_rice_df['Date'].reset_index(drop=True)
 
-    network = LSTMNetwork(input_size=1, hidden_size=64, output_size=1, learning_rate=0.001, epochs=200)
+    network = LSTMNetwork(input_size=1, hidden_size=64, output_size=14, learning_rate=0.001, epochs=200)
     # network.train(X_train, y_train, X_val, y_val, patience=10)
+    # network.save_model("high-price")
     network.load_model("high-price")
 
     test_set = list(zip(X_test, y_test))
@@ -89,18 +90,18 @@ def test_prediction():
         input_seq = X_seq
         input_inverse_seq = scaler.inverse_transform(input_seq)
         actual = scaler.inverse_transform(y_actual)
-        predicted = scaler.inverse_transform(network.predict(input_seq, lookback))
+        predicted = np.round(scaler.inverse_transform(network.predict(input_seq)))
 
         print(f"Date: {date.date()}\nInput:")
         for j in range(len(input_inverse_seq)):
             last_date = test_dates.iloc[i + j]
-            print(f"{input_inverse_seq[j]} => {last_date}")
+            print(f"{input_inverse_seq[j]} => {last_date.date()}")
 
         print(f"Actual: {actual}\n")
         print(f"Predicted:")
         for j in range(1, len(predicted) + 1):
             forecast_date = last_date + pd.Timedelta(days=j)            
-            print(f"{predicted[j - 1]} => {forecast_date}")
+            print(f"{predicted[j - 1]} => {forecast_date.date()}")
 
         print()
 

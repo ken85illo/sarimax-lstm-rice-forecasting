@@ -72,26 +72,20 @@ class LSTMCell:
             self.c_t = state['c_t']
             self.o_t = state['o_t']
 
-        # # Gradient of the output gate
-        # do_t  = dh_next * tanh_function(self.c_t) * sigmoid_derivative(self.o_t)
+        # Gradient of the output gate
+        do_t  = dh_next * tanh_function(self.c_t) * sigmoid_derivative(self.o_t)
 
-        # # Gradient of the cell state
-        # dc_t = dh_next * self.o_t * tanh_derivative(self.c_t) + dc_next
+        # Gradient of the cell state
+        dc_t = dh_next * self.o_t * tanh_derivative(self.c_t) + dc_next
 
-        # # Gradient of the input gate
-        # di_t = dc_t * self.c_tilde * sigmoid_derivative(self.i_t)
+        # Gradient of the input gate
+        di_t = dc_t * self.c_tilde * sigmoid_derivative(self.i_t)
 
-        # # Gradient of the cell state candidate
-        # dc_tilde = dc_t * self.i_t * tanh_derivative(self.c_tilde)
+        # Gradient of the cell state candidate
+        dc_tilde = dc_t * self.i_t * tanh_derivative(self.c_tilde)
 
-        # # Gradient of the forget gate
-        # df_t = dc_t * self.c_prev * sigmoid_derivative(self.f_t)
-
-        do_t  = dh_next * tanh_function(self.c_t) * (self.o_t * (1 - self.o_t))
-        dc_t  = dh_next * self.o_t * tanh_derivative(self.c_t) + dc_next
-        di_t  = dc_t * self.c_tilde * (self.i_t * (1 - self.i_t))
-        df_t  = dc_t * self.c_prev * (self.f_t * (1 - self.f_t))
-        dc_tilde = dc_t * self.i_t * (1 - self.c_tilde**2)
+        # Gradient of the forget gate
+        df_t = dc_t * self.c_prev * sigmoid_derivative(self.f_t)
 
         # Concatenate h_prev (hidden state) and x_t (input at current time step)
         X_t = np.concatenate((self.h_prev, self.x_t), axis=0)
