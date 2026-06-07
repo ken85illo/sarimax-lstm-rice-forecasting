@@ -63,8 +63,6 @@ class LSTMNetwork:
                 # 3. Output layer calculation
                 self.y_pred = self.W_y @ h + self.b_y
 
-
-
                 # 4. Compute Loss and loss derivative (dy)
                 loss = mse_loss(self.y_pred, y_true)
                 epoch_loss += loss

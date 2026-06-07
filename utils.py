@@ -10,13 +10,11 @@ def tanh_function(x):
 
 # Derivative of tanh function
 def tanh_derivative(x):
-    t = np.tanh(x)
-    return 1 - t**2
+    return 1 - x**2
 
 # Derivative of sigmoid function
 def sigmoid_derivative(x):
-    s = sigmoid_function(x)
-    return s * (1 - s)
+    return x * (1 - x)
 
 def mse_loss(y_pred, y_true):
     return np.mean((y_pred - y_true) ** 2)
@@ -49,10 +47,10 @@ def create_sequences_multistep(data, lookback, horizon):
 def split_by_chunks(data, chunk_size):
     return [data[i:i + chunk_size] for i in range(0, len(data) - chunk_size + 1, chunk_size)]
 
-def rmse(y_pred, y_true):
+def mae(y_pred, y_true):
     return np.mean(np.abs(y_true - y_pred))
     
-def mae(y_pred, y_true):
+def rmse(y_pred, y_true):
     return np.sqrt(np.mean((y_true - y_pred) ** 2))
 
 def mape(y_pred, y_true):

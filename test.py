@@ -8,6 +8,7 @@ from lstm_network import LSTMNetwork
 LOOKBACK = 14
 HORIZON = 14
 HIDDEN_SIZE = 64
+LEARNING_RATE = 0.001
 
 def get_trends_df():
     trends_csv = pd.read_csv("datasets/combined_google_trends_dataset.csv")
@@ -60,7 +61,7 @@ def train_on_residual_high():
     X_val, y_val = create_sequences_multistep(scaled_df_val, lookback, horizon)
 
     # TODO: Instantiate and train your network
-    network = LSTMNetwork(input_size=2, hidden_size=HIDDEN_SIZE, output_size=horizon, learning_rate=0.001, epochs=300)
+    network = LSTMNetwork(input_size=2, hidden_size=HIDDEN_SIZE, output_size=horizon, learning_rate=LEARNING_RATE, epochs=300)
     network.train(X_train, y_train, X_val, y_val, patience=20)
     network.save_model(target="high")
 
@@ -82,7 +83,7 @@ def train_on_residual_low():
     X_val, y_val = create_sequences(scaled_df_val, lookback)
 
     # TODO: Instantiate and train your network
-    network = LSTMNetwork(input_size=1, hidden_size=HIDDEN_SIZE, output_size=1, learning_rate=0.001, epochs=150)
+    network = LSTMNetwork(input_size=1, hidden_size=HIDDEN_SIZE, output_size=1, learning_rate=LEARNING_RATE, epochs=150)
     network.train(X_train, y_train, X_val, y_val, patience=20)
     network.save_model(target="low")
 
@@ -174,7 +175,7 @@ def get_price_scaler(scaler):
 
 
 def lstm_predict(target, lookback, resid, col_train, col_val):
-    network = LSTMNetwork(input_size=1, hidden_size=HIDDEN_SIZE, output_size=HORIZON, learning_rate=0.001, epochs=150)
+    network = LSTMNetwork(input_size=2, hidden_size=HIDDEN_SIZE, output_size=HORIZON, learning_rate=LEARNING_RATE, epochs=150)
     network.load_model(target)
 
     val_csv = pd.read_csv("datasets/sarimax_val_residuals_Well-Milled_High.csv")
@@ -190,7 +191,7 @@ def lstm_predict(target, lookback, resid, col_train, col_val):
 
     val_csv.index = pd.to_datetime(val_csv.index)
     df_test_resid = pd.concat([val_csv[len(val_csv) - lookback:], resid])["residuals"]
-    df_trends_test = pd.concat([df_trends_val[len(df_trends_val) - lookback:]])
+    df_trends_test = pd.concat([df_trends_val[len(df_trends_val) - lookback:], df_trends_test])
 
     feature_df = list(zip(df_test_resid, df_trends_test))
     scaled_feature_df = scaler.transform(feature_df)
@@ -261,3 +262,4 @@ def forecast_rolling_walk_forward(model, endog_dataset, exog_dataset, current_da
 if __name__ == "__main__":
     # train_on_residual_high()
     example_sarimax_usage()
+
