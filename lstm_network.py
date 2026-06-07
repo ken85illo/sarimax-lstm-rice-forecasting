@@ -82,14 +82,6 @@ class LSTMNetwork:
                 for state in reversed(states):
                     dh, dc = self.lstm_cell.backward_pass(dh, dc, self.learning_rate, state=state)
 
-            #     print(f"dy norm: {np.linalg.norm(dy):.8f}")
-            #     print(f"dh norm: {np.linalg.norm(dh):.8f}")
-            #     print(f"W_y grad norm: {np.linalg.norm(np.outer(dy, h)):.8f}")
-            #     print(f"y_pred: {self.y_pred}")
-            #     print(f"y_true: {y_true}")
-            #     break
-            #
-            # break
             # Average the loss across all samples in the dataset
             epoch_loss /= len(X_train)
             total_loss = epoch_loss
@@ -153,7 +145,8 @@ class LSTMNetwork:
       self.W_y = best_weights['W_y']
       self.b_y = best_weights['b_y']
 
-    def predict(self, X_seq):
+
+    def predict(self, X_seq, forecast_size=1):
         h = np.zeros(self.hidden_size)
         c = np.zeros(self.hidden_size)
     
@@ -161,8 +154,17 @@ class LSTMNetwork:
             x_t = X_seq[t]
             h, c = self.lstm_cell.forward_pass(x_t, h, c)
 
-        output = self.W_y @ h + self.b_y
-        return output
+        forecast = []
+        last_known = X_seq[-1].copy()  
+
+        for _ in range(forecast_size):
+            h, c = self.lstm_cell.forward_pass(last_known, h, c)
+            y_pred = self.W_y @ h + self.b_y
+            forecast.append(y_pred[0])
+
+            last_known[0] = y_pred[0]
+
+        return np.array(forecast)
 
 
     def save_model(self, target):

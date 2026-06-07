@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from lstm_network import LSTMNetwork
 from min_max_scaler import MinMaxScaler
-from utils import create_sequences
+from utils import create_sequences, create_sequences_multistep
 from min_max_scaler import MinMaxScaler
 
 def test_overfitting():
@@ -31,6 +31,7 @@ def test_overfitting():
     #4. Predict
     final_pred = network.predict(X_sample)
     print(f"Target: {y_sample}, Prediction: {final_pred}")
+
 
 def test_prediction():
     df_raw_rice = pd.read_csv("datasets/well_milled_rice_daily_preprocessed.csv")
@@ -76,8 +77,8 @@ def test_prediction():
     test_dates = test_rice_df['Date'].reset_index(drop=True)
 
     network = LSTMNetwork(input_size=1, hidden_size=64, output_size=1, learning_rate=0.001, epochs=200)
-    # network.train(X_train, y_train, X_val, y_val, patience=10)
-    network.load_model("high-price")
+    network.train(X_train, y_train, X_val, y_val, patience=10)
+    # network.load_model("high-price")
 
     test_set = list(zip(X_test, y_test))
 
@@ -89,7 +90,7 @@ def test_prediction():
         input_seq = X_seq
         input_inverse_seq = scaler.inverse_transform(input_seq)
         actual = scaler.inverse_transform(y_actual)
-        predicted = scaler.inverse_transform(network.predict(input_seq, lookback))
+        predicted = np.round(scaler.inverse_transform(network.predict(input_seq, lookback)))
 
         print(f"Date: {date.date()}\nInput:")
         for j in range(len(input_inverse_seq)):
@@ -103,7 +104,6 @@ def test_prediction():
             print(f"{predicted[j - 1]} => {forecast_date}")
 
         print()
-
 
 
 
