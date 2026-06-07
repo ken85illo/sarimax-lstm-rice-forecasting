@@ -36,6 +36,19 @@ def create_sequences(data, lookback):
         y.append(data[i, 0])
     return np.array(X), np.array(y)
 
+def create_sequences_multistep(data, lookback, horizon):
+    data = np.array(data)
+    if data.ndim == 1:
+        data = data.reshape(-1, 1)
+    X, y = [], []
+    for i in range(lookback, len(data) - horizon + 1):
+        X.append(data[i - lookback:i])
+        y.append(data[i:i + horizon, 0])   # horizon targets
+    return np.array(X), np.array(y)
+
+def split_by_chunks(data, chunk_size):
+    return [data[i:i + chunk_size] for i in range(0, len(data), chunk_size)]
+
 def rmse(y_pred, y_true):
     return np.mean(np.abs(y_true - y_pred))
     

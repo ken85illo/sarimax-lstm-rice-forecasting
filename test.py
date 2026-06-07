@@ -2,7 +2,7 @@ import pandas as pd
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 import numpy as np
 from min_max_scaler import MinMaxScaler
-from utils import create_sequences
+from utils import create_sequences, create_sequences_multistep, split_by_chunks
 from lstm_network import LSTMNetwork
 
 def train_on_residual_high():
@@ -14,17 +14,22 @@ def train_on_residual_high():
     df_train_val = pd.concat([df_train, df_val], ignore_index=True)
 
     scaler = MinMaxScaler()
-    scaler.fit(df_train_val.values.reshape(-1, 1))
-    scaled_df_train = scaler.transform(df_train.values.reshape(-1, 1)) # Fit on training data
+    scaled_df_train = scaler.fit_transform(df_train.values.reshape(-1, 1)) # Fit on training data
     scaled_df_val = scaler.transform(df_val.values.reshape(-1, 1))     # Transform validation data using the fitted scaler
 
     # Create sequences
     lookback = 14
-    X_train, y_train = create_sequences(scaled_df_train, lookback)
-    X_val, y_val = create_sequences(scaled_df_val, lookback)
+    horizon = 14
+    X_train, y_train = create_sequences_multistep(scaled_df_train, lookback, horizon)
+    X_val, y_val = create_sequences_multistep(scaled_df_val, lookback, horizon)
 
+    # print(f"y_train min: {y_train.min():.4f}, max: {y_train.max():.4f}, mean: {y_train.mean():.4f}")
+    # print(f"X_train min: {X_train.min():.4f}, max: {X_train.max():.4f}")
+    #
+    # print(f"y_val min: {y_val.min():.4f}, max: {y_val.max():.4f}, mean: {y_val.mean():.4f}")
+    # print(f"X_val min: {X_val.min():.4f}, max: {X_val.max():.4f}")
     # TODO: Instantiate and train your network
-    network = LSTMNetwork(input_size=1, hidden_size=128, output_size=1, learning_rate=0.001, epochs=150)
+    network = LSTMNetwork(input_size=1, hidden_size=64, output_size=horizon, learning_rate=0.001, epochs=300)
     network.train( X_train, y_train, X_val, y_val, patience=20)
     network.save_model(target="high")
 
@@ -37,8 +42,7 @@ def train_on_residual_low():
     df_train_val = pd.concat([df_train, df_val], ignore_index=True)
 
     scaler = MinMaxScaler()
-    scaler.fit(df_train_val.values.reshape(-1, 1))
-    scaled_df_train = scaler.transform(df_train.values.reshape(-1, 1)) # Fit on training data
+    scaled_df_train = scaler.fit_transform(df_train.values.reshape(-1, 1)) # Fit on training data
     scaled_df_val = scaler.transform(df_val.values.reshape(-1, 1))     # Transform validation data using the fitted scaler
 
     # Create sequences
@@ -100,18 +104,16 @@ def example_sarimax_usage():
     # model_low, resid_low = forecast_rolling_walk_forward(model_low, df_test_rice_low, df_test_enso, current_date, end_date)
 
 def lstm_predict(target, lookback, resid):
-    network = LSTMNetwork( input_size=1, hidden_size=128, output_size=1, learning_rate=0.001, epochs=150)
+    network = LSTMNetwork( input_size=1, hidden_size=64, output_size=14, learning_rate=0.001, epochs=150)
     network.load_model(target)
 
     train_csv = pd.read_csv("datasets/sarimax_train_residuals_Well-Milled_High.csv")
     val_csv = pd.read_csv("datasets/sarimax_val_residuals_Well-Milled_High.csv")
 
     df_train = train_csv["Well-Milled High_train_residual"]
-    df_val = val_csv["Well-Milled High_val_residual"]
-    df_train_val = pd.concat([df_train, df_val], ignore_index=True)
 
     scaler = MinMaxScaler()
-    scaler.fit(df_train_val.values.reshape(-1, 1))
+    scaler.fit(df_train.values.reshape(-1, 1))
     print(f"{scaler.min} {scaler.max}")
     
     val_csv = val_csv.rename(columns={"Well-Milled High_val_residual": "residuals"})
@@ -121,21 +123,18 @@ def lstm_predict(target, lookback, resid):
     val_csv.index = pd.to_datetime(val_csv.index)
     df_test_resid = pd.concat([val_csv[len(val_csv) - lookback:], resid])["residuals"]
     scaled_test_resid = scaler.transform(df_test_resid.values.reshape(-1, 1))
-    resid_dates = df_test_resid.index
 
-    X_test, _ = create_sequences(scaled_test_resid, lookback)
+    X_test = split_by_chunks(scaled_test_resid, 14)
+    resid_dates = split_by_chunks(df_test_resid.index, 14)
 
-    for i in range(0, len(X_test), lookback): 
-        X_seq = X_test[i]
-        date = resid_dates[i]
-
+    for X_seq, date in zip(X_test, resid_dates): 
         input_seq = X_seq
         input_inverse_seq = scaler.inverse_transform(input_seq)
-        predicted = scaler.inverse_transform(network.predict(input_seq, lookback).reshape(-1, 1))
+        predicted = scaler.inverse_transform(network.predict(input_seq).reshape(-1, 1))
 
-        print(f"Date: {date.date()}\nInput:")
+        print(f"Date: {date[0].date()}\nInput:")
         for j in range(len(input_inverse_seq)):
-            last_date = resid_dates[i + j]
+            last_date = date[j].date()
             print(f"{input_inverse_seq[j]} => {last_date}")
 
         print(f"Predicted:")
@@ -182,4 +181,5 @@ def forecast_rolling_walk_forward(model, endog_dataset, exog_dataset, current_da
     return model, resid
 
 if __name__ == "__main__":
+    # train_on_residual_high()
     example_sarimax_usage()

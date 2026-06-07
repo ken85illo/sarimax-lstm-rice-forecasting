@@ -11,23 +11,23 @@ class LSTMCell:
         self.input_size = input_size
         self.hidden_size = hidden_size
 
-        scale = 0.1
+        self.scale = 0.1
 
         # Forget gate learnables
-        self.W_f = scale * self.rng.normal(self.RNG_MEAN, self.RNG_STD_DEV, (hidden_size, hidden_size + input_size))
-        self.b_f = scale * np.ones(hidden_size)
+        self.W_f = self.scale * self.rng.normal(self.RNG_MEAN, self.RNG_STD_DEV, (hidden_size, hidden_size + input_size))
+        self.b_f = np.ones(hidden_size)
 
         # Input gate learnables
-        self.W_i= scale * self.rng.normal(self.RNG_MEAN, self.RNG_STD_DEV, (hidden_size, hidden_size + input_size))
-        self.b_i = scale * np.ones(hidden_size)
+        self.W_i= self.scale * self.rng.normal(self.RNG_MEAN, self.RNG_STD_DEV, (hidden_size, hidden_size + input_size))
+        self.b_i = np.zeros(hidden_size)
 
         # C tilde learnables
-        self.W_c = scale * self.rng.normal(self.RNG_MEAN, self.RNG_STD_DEV, (hidden_size, hidden_size + input_size))
-        self.b_c = scale * np.ones(hidden_size)
+        self.W_c = self.scale * self.rng.normal(self.RNG_MEAN, self.RNG_STD_DEV, (hidden_size, hidden_size + input_size))
+        self.b_c = np.zeros(hidden_size)
 
         # Output gate learnables
-        self.W_o = scale * self.rng.normal(self.RNG_MEAN, self.RNG_STD_DEV, (hidden_size, hidden_size + input_size))
-        self.b_o = scale * np.ones(hidden_size)
+        self.W_o = self.scale * self.rng.normal(self.RNG_MEAN, self.RNG_STD_DEV, (hidden_size, hidden_size + input_size))
+        self.b_o = np.zeros(hidden_size)
 
 
     def forward_pass(self, x_t, h_prev, c_prev):

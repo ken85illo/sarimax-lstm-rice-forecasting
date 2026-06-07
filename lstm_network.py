@@ -11,9 +11,14 @@ class LSTMNetwork:
         self.output_size = output_size
         self.lstm_cell = LSTMCell(input_size, hidden_size)
 
+        scale = self.lstm_cell.scale
+        rng = self.lstm_cell.rng
+        rng_mean = self.lstm_cell.RNG_MEAN
+        rng_std_dev = self.lstm_cell.RNG_STD_DEV
+
         # Output layer weights and biases
-        self.W_y = np.zeros((output_size, hidden_size))
-        self.b_y = np.ones(output_size)
+        self.W_y = scale * rng.normal(rng_mean, rng_std_dev, (output_size, hidden_size))
+        self.b_y = np.zeros(output_size)
 
         # Learning parameters
         self.learning_rate = learning_rate
@@ -58,6 +63,8 @@ class LSTMNetwork:
                 # 3. Output layer calculation
                 self.y_pred = self.W_y @ h + self.b_y
 
+
+
                 # 4. Compute Loss and loss derivative (dy)
                 loss = mse_loss(self.y_pred, y_true)
                 epoch_loss += loss
@@ -75,6 +82,14 @@ class LSTMNetwork:
                 for state in reversed(states):
                     dh, dc = self.lstm_cell.backward_pass(dh, dc, self.learning_rate, state=state)
 
+            #     print(f"dy norm: {np.linalg.norm(dy):.8f}")
+            #     print(f"dh norm: {np.linalg.norm(dh):.8f}")
+            #     print(f"W_y grad norm: {np.linalg.norm(np.outer(dy, h)):.8f}")
+            #     print(f"y_pred: {self.y_pred}")
+            #     print(f"y_true: {y_true}")
+            #     break
+            #
+            # break
             # Average the loss across all samples in the dataset
             epoch_loss /= len(X_train)
             total_loss = epoch_loss
@@ -95,7 +110,8 @@ class LSTMNetwork:
                 val_loss /= len(X_val)
 
                 # Early stopping
-                if val_loss < best_val_loss:
+                min_delta = 1e-6 # only count as improvement if it drops by this much
+                if val_loss < best_val_loss - min_delta:
                     best_val_loss = val_loss
                     epochs_no_improve = 0
                     # Save best weights
@@ -137,7 +153,7 @@ class LSTMNetwork:
       self.W_y = best_weights['W_y']
       self.b_y = best_weights['b_y']
 
-    def predict(self, X_seq, forecast_size=1):
+    def predict(self, X_seq):
         h = np.zeros(self.hidden_size)
         c = np.zeros(self.hidden_size)
     
@@ -145,17 +161,8 @@ class LSTMNetwork:
             x_t = X_seq[t]
             h, c = self.lstm_cell.forward_pass(x_t, h, c)
 
-        forecast = []
-        last_known = X_seq[-1].copy()  
-
-        for _ in range(forecast_size):
-            h, c = self.lstm_cell.forward_pass(last_known, h, c)
-            y_pred = self.W_y @ h + self.b_y
-            forecast.append(y_pred[0])
-
-            last_known[0] = y_pred[0]
-
-        return np.array(forecast)
+        output = self.W_y @ h + self.b_y
+        return output
 
 
     def save_model(self, target):

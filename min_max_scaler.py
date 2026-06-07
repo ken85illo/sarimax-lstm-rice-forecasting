@@ -12,8 +12,7 @@ class MinMaxScaler:
 
     def transform(self, data):
         # Apply the formula: (x - min) / (max - min)
-        # We add a tiny epsilon to avoid division by zero
-        return (data - self.min) / (self.max - self.min + 1e-8)
+        return (data - self.min) / (self.max - self.min)
 
     def fit_transform(self, data):
         self.fit(data)
