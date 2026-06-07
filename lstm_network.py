@@ -156,7 +156,6 @@ class LSTMNetwork:
         output = self.W_y @ h + self.b_y
         return output
 
-
     def save_model(self, target):
         filename = f"{target}-lstm_model.npz"
         

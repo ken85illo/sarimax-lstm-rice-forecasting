@@ -106,11 +106,6 @@ def test_prediction():
         print()
 
 
-
-
-            
-
-
 if __name__ == "__main__":
     test_prediction()
 

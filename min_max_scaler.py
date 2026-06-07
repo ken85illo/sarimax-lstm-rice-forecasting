@@ -21,3 +21,19 @@ class MinMaxScaler:
     def inverse_transform(self, scaled_data):
         # Useful for converting predictions back to original price scale
         return scaled_data * (self.max - self.min) + self.min
+
+    def save_scaler(self, target):
+        filename = f"{target}-scaler.npz"
+        
+        # We save all learnable parameters into a single .npz file
+        np.savez(filename, min = self.min, max = self.max)
+        print(f"Scaler saved to {filename}")
+
+    def load_scaler(self, target):
+        filename = f"{target}-scaler.npz"
+
+        data = np.load(filename)
+        self.min = data['min']
+        self.max = data['max']
+
+        print(f"Scaler loaded from {filename}")

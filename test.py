@@ -2,8 +2,12 @@ import pandas as pd
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 import numpy as np
 from min_max_scaler import MinMaxScaler
-from utils import create_sequences, create_sequences_multistep, split_by_chunks
+from utils import create_sequences, create_sequences_multistep, mae, mape, rmse, split_by_chunks
 from lstm_network import LSTMNetwork
+
+LOOKBACK = 14
+HORIZON = 14
+HIDDEN_SIZE = 64
 
 def train_on_residual_high():
     train_csv = pd.read_csv("datasets/sarimax_train_residuals_Well-Milled_High.csv")
@@ -11,20 +15,20 @@ def train_on_residual_high():
 
     df_train = train_csv["Well-Milled High_train_residual"]
     df_val = val_csv["Well-Milled High_val_residual"]
-    df_train_val = pd.concat([df_train, df_val], ignore_index=True)
 
     scaler = MinMaxScaler()
-    scaled_df_train = scaler.fit_transform(df_train_val.values.reshape(-1, 1)) # Fit on training data
+    scaled_df_train = scaler.fit_transform(df_train.values.reshape(-1, 1)) # Fit on training data
     scaled_df_val = scaler.transform(df_val.values.reshape(-1, 1))     # Transform validation data using the fitted scaler
+    scaler.save_scaler("high")
 
     # Create sequences
-    lookback = 14
-    horizon = 14
+    lookback = LOOKBACK
+    horizon = HORIZON
     X_train, y_train = create_sequences_multistep(scaled_df_train, lookback, horizon)
     X_val, y_val = create_sequences_multistep(scaled_df_val, lookback, horizon)
 
     # TODO: Instantiate and train your network
-    network = LSTMNetwork(input_size=1, hidden_size=64, output_size=horizon, learning_rate=0.001, epochs=300)
+    network = LSTMNetwork(input_size=1, hidden_size=HIDDEN_SIZE, output_size=horizon, learning_rate=0.001, epochs=300)
     network.train( X_train, y_train, X_val, y_val, patience=20)
     network.save_model(target="high")
 
@@ -41,12 +45,12 @@ def train_on_residual_low():
     scaled_df_val = scaler.transform(df_val.values.reshape(-1, 1))     # Transform validation data using the fitted scaler
 
     # Create sequences
-    lookback = 14
+    lookback = LOOKBACK
     X_train, y_train = create_sequences(scaled_df_train, lookback)
     X_val, y_val = create_sequences(scaled_df_val, lookback)
 
     # TODO: Instantiate and train your network
-    network = LSTMNetwork(input_size=1, hidden_size=64, output_size=1, learning_rate=0.001, epochs=150)
+    network = LSTMNetwork(input_size=1, hidden_size=HIDDEN_SIZE, output_size=1, learning_rate=0.001, epochs=150)
     network.train(X_train, y_train, X_val, y_val, patience=20)
     network.save_model(target="low")
 
@@ -93,25 +97,51 @@ def example_sarimax_usage():
     current_date = pd.to_datetime('2025-09-11')
     end_date = df_test_rice_high.index.max()
 
-    model_high, resid_high = forecast_rolling_walk_forward(model_high, df_test_rice_high, df_test_enso, current_date, end_date)
-    lstm_predict("high", 14, resid_high)
+    model_high, resid_high, sarimax_high_forecasts = forecast_rolling_walk_forward(model_high, df_test_rice_high, df_test_enso, current_date, end_date)
+    lstm_high_forecasts = lstm_predict("high", LOOKBACK, resid_high, "Well-Milled High_train_residual", "Well-Milled High_val_residual")
+    final_forecast = sarimax_high_forecasts + lstm_high_forecasts
+    actual = df_test_rice_high[current_date:]
+
+    sarimax_high_forecasts.index = pd.to_datetime(sarimax_high_forecasts.index)
+    lstm_high_forecasts.index = pd.to_datetime(lstm_high_forecasts.index)
+    actual.index = pd.to_datetime(actual.index)
+    final_forecast.index = pd.to_datetime(final_forecast.index)
+
+    print("\n=== Final Combined Forecast vs Actual (High) ===")
+    comparison_high = pd.DataFrame({
+        'actual': actual,
+        'sarimax':  np.round(sarimax_high_forecasts[:len(actual)]),
+        'residuals': resid_high["residuals"],
+        'lstm_correction':  lstm_high_forecasts[:len(actual)],
+        'final_forecast':  np.round(final_forecast[:len(actual)]),
+    })
+    print(comparison_high)
+
+    comparison_high.to_csv("final_forecast.csv")
+    print("=== SARIMAX (HIGH)===")
+    print(f"RMSE: {rmse(comparison_high["sarimax"], comparison_high["actual"]):.4f}")
+    print(f"MAE: {mae(comparison_high["sarimax"], comparison_high["actual"]):.4f}")
+    print(f"MAPE: {mape(comparison_high["sarimax"], comparison_high["actual"]):.4f}%")
+
+    print()
+    print("=== HYBRID (HIGH)===")
+    print(f"RMSE: {rmse(comparison_high["final_forecast"], comparison_high["actual"]):.4f}")
+    print(f"MAE: {mae(comparison_high["final_forecast"], comparison_high["actual"]):.4f}")
+    print(f"MAPE: {mape(comparison_high["final_forecast"], comparison_high["actual"]):.4f}%")
+    
 
     # model_low, resid_low = forecast_rolling_walk_forward(model_low, df_test_rice_low, df_test_enso, current_date, end_date)
 
-def lstm_predict(target, lookback, resid):
-    network = LSTMNetwork( input_size=1, hidden_size=64, output_size=14, learning_rate=0.001, epochs=150)
+def lstm_predict(target, lookback, resid, col_train, col_val):
+    network = LSTMNetwork(input_size=1, hidden_size=HIDDEN_SIZE, output_size=14, learning_rate=0.001, epochs=150)
     network.load_model(target)
 
-    train_csv = pd.read_csv("datasets/sarimax_train_residuals_Well-Milled_High.csv")
     val_csv = pd.read_csv("datasets/sarimax_val_residuals_Well-Milled_High.csv")
 
-    df_train = train_csv["Well-Milled High_train_residual"]
-
     scaler = MinMaxScaler()
-    scaler.fit(df_train.values.reshape(-1, 1))
-    print(f"{scaler.min} {scaler.max}")
+    scaler.load_scaler("high")
     
-    val_csv = val_csv.rename(columns={"Well-Milled High_val_residual": "residuals"})
+    val_csv = val_csv.rename(columns={f"{col_val}": "residuals"})
     if "Date" in val_csv.columns:
         val_csv = val_csv.set_index("Date")
 
@@ -119,13 +149,15 @@ def lstm_predict(target, lookback, resid):
     df_test_resid = pd.concat([val_csv[len(val_csv) - lookback:], resid])["residuals"]
     scaled_test_resid = scaler.transform(df_test_resid.values.reshape(-1, 1))
 
-    X_test = split_by_chunks(scaled_test_resid, 14)
-    resid_dates = split_by_chunks(df_test_resid.index, 14)
+    X_test = split_by_chunks(scaled_test_resid, LOOKBACK)
+    resid_dates = split_by_chunks(df_test_resid.index, LOOKBACK)
 
+    forecasts = []
+    dates = []
     for X_seq, date in zip(X_test, resid_dates): 
         input_seq = X_seq
         input_inverse_seq = scaler.inverse_transform(input_seq)
-        predicted = scaler.inverse_transform(network.predict(input_seq).reshape(-1, 1))
+        predicted = scaler.inverse_transform(network.predict(input_seq).reshape(-1, 1)) 
 
         print(f"Date: {date[0].date()}\nInput:")
         for j in range(len(input_inverse_seq)):
@@ -137,7 +169,12 @@ def lstm_predict(target, lookback, resid):
             forecast_date = last_date + pd.Timedelta(days=j)            
             print(f"{predicted[j - 1]} => {forecast_date}")
 
+            forecasts.extend(predicted[j-1])
+            dates.append(forecast_date)
+
         print()
+    
+    return pd.Series(forecasts, index=dates)
 
 def forecast_rolling_walk_forward(model, endog_dataset, exog_dataset, current_date, end_date, steps=14):
     forecasts = []
@@ -151,9 +188,9 @@ def forecast_rolling_walk_forward(model, endog_dataset, exog_dataset, current_da
         exog_forecast = exog_dataset.loc[exog_start:current_date - pd.Timedelta(days=1)]
         
         forecast = predict_sarimax(model, exog_data=exog_forecast)
-        # if forecast is not None:
-        #     print(f"\nForecast from {current_date.date()} (using ENSO {exog_start.date()} to {(current_date - pd.Timedelta(days=1)).date()}):")
-        #     print(forecast.head(steps))
+        if forecast is not None:
+            print(f"\nForecast from {current_date.date()} (using ENSO {exog_start.date()} to {(current_date - pd.Timedelta(days=1)).date()}):")
+            print(forecast.head(steps))
 
         # Refit on the forecasted 14 days
         endog_update = endog_dataset.loc[current_date:forecast_end]
@@ -163,17 +200,16 @@ def forecast_rolling_walk_forward(model, endog_dataset, exog_dataset, current_da
         fc_indices.extend(endog_dataset.loc[current_date: forecast_end].index.tolist())
     
         if len(endog_update) > 0:
-            model = model.append(endog_update, exog=exog_update, refit=True)
+            model = model.append(endog_update, exog=exog_update, refit=False)
         
         current_date = forecast_end + pd.Timedelta(days=1)
     
     forecasts = np.array(forecasts)
-    forecast_test = pd.Series(forecasts[:len(fc_indices), 0], index=fc_indices)
-
-    resid = endog_dataset[start_date:] - forecast_test
+    forecast_series = pd.Series(forecasts[:len(fc_indices), 0], index=fc_indices)
+    resid = endog_dataset[start_date:] - forecast_series
     resid = pd.DataFrame(resid, columns=["residuals"], index=fc_indices)
 
-    return model, resid
+    return model, resid, forecast_series
 
 if __name__ == "__main__":
     train_on_residual_high()

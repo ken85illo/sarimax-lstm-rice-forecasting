@@ -47,7 +47,7 @@ def create_sequences_multistep(data, lookback, horizon):
     return np.array(X), np.array(y)
 
 def split_by_chunks(data, chunk_size):
-    return [data[i:i + chunk_size] for i in range(0, len(data), chunk_size)]
+    return [data[i:i + chunk_size] for i in range(0, len(data) - chunk_size + 1, chunk_size)]
 
 def rmse(y_pred, y_true):
     return np.mean(np.abs(y_true - y_pred))
@@ -55,5 +55,5 @@ def rmse(y_pred, y_true):
 def mae(y_pred, y_true):
     return np.sqrt(np.mean((y_true - y_pred) ** 2))
 
-def mae(y_pred, y_true):
+def mape(y_pred, y_true):
     return np.mean(np.abs((y_true - y_pred) / y_true)) * 100    
