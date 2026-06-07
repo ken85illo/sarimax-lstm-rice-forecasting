@@ -87,12 +87,6 @@ class LSTMCell:
         # Gradient of the forget gate
         df_t = dc_t * self.c_prev * sigmoid_derivative(self.f_t)
 
-        do_t  = dh_next * tanh_function(self.c_t) * (self.o_t * (1 - self.o_t))
-        dc_t  = dh_next * self.o_t * tanh_derivative(self.c_t) + dc_next
-        di_t  = dc_t * self.c_tilde * (self.i_t * (1 - self.i_t))
-        df_t  = dc_t * self.c_prev * (self.f_t * (1 - self.f_t))
-        dc_tilde = dc_t * self.i_t * (1 - self.c_tilde**2)
-
         # Concatenate h_prev (hidden state) and x_t (input at current time step)
         X_t = np.concatenate((self.h_prev, self.x_t), axis=0)
 

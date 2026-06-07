@@ -181,5 +181,5 @@ def forecast_rolling_walk_forward(model, endog_dataset, exog_dataset, current_da
     return model, resid
 
 if __name__ == "__main__":
-    # train_on_residual_high()
+    train_on_residual_high()
     example_sarimax_usage()
