@@ -1,115 +1,117 @@
 import numpy as np
 import pandas as pd
-from lstm_network import LSTMNetwork
-from min_max_scaler import MinMaxScaler
-from utils import create_sequences, create_sequences_multistep
-from min_max_scaler import MinMaxScaler
 
-def test_overfitting():
-    # 1. Setup: 3 inputs, 2 hidden neurons, 1 output
-    network = LSTMNetwork(input_size=3, hidden_size=64, output_size=1, learning_rate=0.1, epochs=200)
+from config import ModelConfig, PathConfig
+from data import DataLoader, Preprocessor
+from lstm import LSTMNetwork
+from training import Trainer
+from forecasting import SARIMAX, LSTM, ResidualLearning
 
-    # 2. Dummy data: A single sequence of 5 time steps
-    X_sample = np.random.randn(5, 3) # 5 steps, 3 features
-    y_sample = np.array([0.8])       # Target
+# == Shared config ==
+CONFIG = ModelConfig(
+    lookback=14,
+    horizon=14,
+    hidden_size=64,
+    learning_rate=0.001,
+    epochs=300,
+    patience=20,
+    input_size=2,
+    output_size=14,
+)
 
-    # Wrap in list so it matches the expected iterable structure
-    X_train = [X_sample]
-    print(X_train)
-    y_train = [y_sample]
+PATHS = PathConfig()
+loader = DataLoader(PATHS)
 
-    X_val = [X_sample]
-    y_val = [y_sample]
+# == Helpers ==
+def split_trends():
+    # Return the google trends dataset with 2312 days (same size sa rice price)
+    trends = loader.load_trends(max_rows=2312)
+    return Preprocessor.train_val_test_split(trends, 0.70, 0.20)
 
-    print(X_train)
-    print(y_train)
+# == Training pipelines ==
+def train_lstm_residuals(target = "high"):
+    print(f"=== Training: Well-Milled {target.capitalize()} ===")
 
-    #3. Train
-    print("Starting sanity check (loss should decrease)...")
-    network.train( X_train, y_train, X_val, y_val, patience=20)
-    print("\n\n===== FINISH TRAINING =====\n\n")
+    # Load raw data (rice price and google trends)
+    train_resid = loader.load_train_residuals(target, f"Well-Milled {target.capitalize()}_train_residual") 
+    val_resid = loader.load_val_residuals(target, f"Well-Milled {target.capitalize()}_val_residual")
+    trends_train, trends_val, _ = split_trends()
 
-    #4. Predict
-    final_pred = network.predict(X_sample)
-    print(f"Target: {y_sample}, Prediction: {final_pred}")
+    # Preprocess
+    prep = Preprocessor(CONFIG)
+    X_train, y_train, X_val, y_val = prep.prepare_multivariate(
+        train_features=list(zip(train_resid, trends_train)),
+        val_features=list(zip(val_resid, trends_val)),
+        target=target,
+        multistep=True,
+    )
 
-def test_prediction():
-    df_raw_rice = pd.read_csv("datasets/well_milled_rice_daily_preprocessed.csv")
-    df_raw_rice['Date'] = pd.to_datetime(df_raw_rice['Date'])
-    df_raw_rice = df_raw_rice.sort_values('Date').reset_index(drop=True)
-
-    # 70-20-10 split
-    train_split_count = 0.7
-    validation_split_count = 0.2
-
-    # Row split calculation for training - validation - testing
-    total_rows = len(df_raw_rice)
-
-    train_size = int(total_rows * train_split_count)
-    val_size = int(total_rows * validation_split_count)
-
-    # Split rice price data
-    scaler = MinMaxScaler()
-    train_val_rice_df = df_raw_rice.iloc[:train_size + val_size].copy()
-    print(f"Train + Val Start: {train_val_rice_df['Date'].iloc[0]}\nTrain + Val End: {train_val_rice_df['Date'].iloc[-1]}")
-    high_train_val_df = train_val_rice_df["Well-Milled High"]
-    scaler.fit(high_train_val_df.values.reshape(-1, 1)) # Fit on training data
-
-    df_train = high_train_val_df.iloc[:train_size]
-    df_val = high_train_val_df.iloc[train_size:train_size + val_size]
-
-    scaled_df_train = scaler.transform(df_train.values.reshape(-1, 1)) # Fit on training data
-    scaled_df_val = scaler.transform(df_val.values.reshape(-1, 1))     # Transform validation data using the fitted scaler
-
-    # Create sequences (adjust lookback as needed)
-    horizon = 14
-    lookback = 14
-    X_train, y_train = create_sequences_multistep(scaled_df_train, lookback, horizon)
-    X_val, y_val = create_sequences_multistep(scaled_df_val, lookback, horizon)
-
-    # Test Dataset and min-max transform
-    test_rice_df = df_raw_rice.iloc[train_size + val_size - lookback:].copy()
-    high_test_df = test_rice_df["Well-Milled High"]
-    scaled_df_test = scaler.transform(high_test_df.values.reshape(-1, 1)) # Fit on training data
+    # Build, train, and save
+    network = LSTMNetwork(
+        input_size=CONFIG.input_size,
+        hidden_size=CONFIG.hidden_size,
+        output_size=CONFIG.output_size,
+    )
     
-    # Parameters and sequence creation
-    X_test, y_test = create_sequences_multistep(scaled_df_test, lookback, horizon)
-    test_dates = test_rice_df['Date'].reset_index(drop=True)
-
-    network = LSTMNetwork(input_size=1, hidden_size=64, output_size=14, learning_rate=0.001, epochs=200)
-    # network.train(X_train, y_train, X_val, y_val, patience=10)
-    # network.save_model("high-price")
-    network.load_model("high-price")
-
-    test_set = list(zip(X_test, y_test))
+    trainer = Trainer(network, CONFIG.learning_rate, CONFIG.epochs, CONFIG.patience)
+    trainer.train(X_train, y_train, X_val, y_val)
+    network.save_model(target)
 
 
-    for i in range(0, len(test_set), lookback): 
-        X_seq, y_actual = test_set[i]
-        date = test_dates.iloc[i]
 
-        input_seq = X_seq
-        input_inverse_seq = scaler.inverse_transform(input_seq)
-        actual = scaler.inverse_transform(y_actual)
-        predicted = np.round(scaler.inverse_transform(network.predict(input_seq)))
+# == Residual Learning Evaluation ==
+def run_residual_learning_evaluation(target = "high"):
+    print(f"=== Residual Learning Evaluation: Well-Milled {target.capitalize()} ===")
 
-        print(f"Date: {date.date()}\nInput:")
-        for j in range(len(input_inverse_seq)):
-            last_date = test_dates.iloc[i + j]
-            print(f"{input_inverse_seq[j]} => {last_date.date()}")
+    rice_df = loader.load_rice()
+    enso = loader.load_enso()
+    _, trends_val, trends_test = split_trends()
 
-        print(f"Actual: {actual}\n")
-        print(f"Predicted:")
-        for j in range(1, len(predicted) + 1):
-            forecast_date = last_date + pd.Timedelta(days=j)            
-            print(f"{predicted[j - 1]} => {forecast_date.date()}")
+    # Test window
+    test_start = pd.to_datetime("2025-09-11")
+    test_end = rice_df[f"Well-Milled {target.capitalize()}"].index.max()
 
-        print()
+    endog_test = rice_df[f"Well-Milled {target.capitalize()}"][rice_df.index >= "2025-08-28"]
+    exog_test = enso[enso.index >= "2025-08-28"]
 
+    # Load models
+    sarimax = SARIMAX.load(target, PATHS)
+    lstm = LSTM.load(target, CONFIG)
 
+    # Validation tails (last 14 days ng validation to be passed as input)
+    val_resid = loader.load_val_residuals(target, f"Well-Milled {target.capitalize()}_val_residual")
+    val_resid_tail = val_resid.iloc[-CONFIG.lookback:]
+    val_trends_tail = trends_val.iloc[-CONFIG.lookback:]
+
+    residual_learning = ResidualLearning(sarimax, lstm)
+    residual_learning.run(
+        endog=endog_test,
+        exog=exog_test,
+        trends_test=trends_test,
+        val_residuals_tail=val_resid_tail,
+        val_trends_tail=val_trends_tail,
+        start_date=test_start,
+        end_date=test_end,
+        steps=CONFIG.horizon,
+        output_csv=f"output/final_forecast_{target}.csv",
+    )
+
+# == Sanity Check == 
+def sanity_check_overfit():
+    print("=== Sanity check (overfitting a single sample) ===")
+
+    network = LSTMNetwork(input_size=3, hidden_size=64, output_size=1)
+    trainer = Trainer(network, learning_rate=0.1, epochs=200, patience=20)
+
+    X_sample = np.random.randn(5, 3)
+    y_sample = np.array([0.8])
+
+    trainer.train([X_sample], [y_sample], [X_sample], [y_sample])
+
+    pred = network.predict(X_sample)
+    print(f"\nTarget: {y_sample}  |  Prediction: {pred}")
+
+# == Entry point ==
 if __name__ == "__main__":
-    # test_prediction()
-    test_overfitting()
-
-    
-
+    train_lstm_residuals(target="low")
+    run_residual_learning_evaluation(target="low")
