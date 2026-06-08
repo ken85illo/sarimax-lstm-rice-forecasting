@@ -40,7 +40,8 @@ class Trainer:
                         return total_loss
 
         # Restore yung best weights sa validation
-        checkpoint.restore(self.network)
+        if X_val is not None:
+            checkpoint.restore(self.network)
         return total_loss
 
 
@@ -66,6 +67,9 @@ class Trainer:
                 dh, dc = self.network.lstm_cell.backward_pass(
                     dh, dc, self.learning_rate, state=state
                 )
+
+            self.network.lstm_cell.update_weights(self.learning_rate)
+            
 
         return epoch_loss / len(X_train)
 

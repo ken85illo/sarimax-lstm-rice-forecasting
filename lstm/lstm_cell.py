@@ -32,6 +32,8 @@ class LSTMCell:
         self.W_o = self.scale * self.rng.normal(self.RNG_MEAN, self.RNG_STD_DEV, shape)
         self.b_o = np.zeros(hidden_size)
 
+        self.reset_gradients()
+
     # == Forward Pass ==
     def forward_pass(self, x_t, h_prev, c_prev):
         self.x_t = x_t
@@ -79,19 +81,19 @@ class LSTMCell:
         di_t = np.clip(di_t, -clip_value, clip_value)
         dc_tilde = np.clip(dc_tilde, -clip_value, clip_value)
         df_t = np.clip(df_t, -clip_value, clip_value)
-
-        # Weight updates
-        self.W_f -= learning_rate * np.outer(df_t, X_t)
-        self.b_f -= learning_rate * df_t
-
-        self.W_i -= learning_rate * np.outer(di_t, X_t)
-        self.b_i -= learning_rate * di_t
-
-        self.W_c -= learning_rate * np.outer(dc_tilde, X_t)
-        self.b_c -= learning_rate * dc_tilde
-
-        self.W_o -= learning_rate * np.outer(do_t, X_t)
-        self.b_o -= learning_rate * do_t
+        
+        # Accumulate gradients 
+        self.dW_f += np.outer(df_t, X_t)
+        self.db_f += df_t
+        
+        self.dW_i += np.outer(di_t, X_t)
+        self.db_i += di_t
+        
+        self.dW_c += np.outer(dc_tilde, X_t)
+        self.db_c += dc_tilde
+        
+        self.dW_o += np.outer(do_t, X_t)
+        self.db_o += do_t
 
         # Propagate gradients to previous time step
         dh_prev = (
@@ -103,3 +105,33 @@ class LSTMCell:
         dc_prev = dc_t * self.f_t
 
         return dh_prev, dc_prev
+    
+    def reset_gradients(self):
+        self.dW_f = np.zeros_like(self.W_f)
+        self.db_f = np.zeros_like(self.b_f)
+        self.dW_i = np.zeros_like(self.W_i)
+        self.db_i = np.zeros_like(self.b_i)
+        self.dW_c = np.zeros_like(self.W_c)
+        self.db_c = np.zeros_like(self.b_c)
+        self.dW_o = np.zeros_like(self.W_o)
+        self.db_o = np.zeros_like(self.b_o)
+    
+    def update_weights(self, learning_rate):
+        # Update forget gate
+        self.W_f -= learning_rate * self.dW_f
+        self.b_f -= learning_rate * self.db_f
+
+        # Update input gate
+        self.W_i -= learning_rate * self.dW_i
+        self.b_i -= learning_rate * self.db_i
+
+        # Update cell state candidate
+        self.W_c -= learning_rate * self.dW_c
+        self.b_c -= learning_rate * self.db_c
+
+        # Update output gate
+        self.W_o -= learning_rate * self.dW_o
+        self.b_o -= learning_rate * self.db_o
+
+        # Reset gradients for the next sequence
+        self.reset_gradients()

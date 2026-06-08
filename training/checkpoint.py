@@ -28,17 +28,17 @@ class ModelCheckpoint:
         cell = network.lstm_cell
 
         # Mainly used to restore yung best weights if no improvement na yung future epochs
-        cell.W_f = self._weights["W_f"]
-        cell.b_f = self._weights["b_f"]
-        cell.W_i = self._weights["W_i"]
-        cell.b_i = self._weights["b_i"]
-        cell.W_c = self._weights["W_c"]
-        cell.b_c = self._weights["b_c"]
-        cell.W_o = self._weights["W_o"]
-        cell.b_o = self._weights["b_o"]
+        cell.W_f = self._weights["W_f"].copy()
+        cell.b_f = self._weights["b_f"].copy()
+        cell.W_i = self._weights["W_i"].copy()
+        cell.b_i = self._weights["b_i"].copy()
+        cell.W_c = self._weights["W_c"].copy()
+        cell.b_c = self._weights["b_c"].copy()
+        cell.W_o = self._weights["W_o"].copy()
+        cell.b_o = self._weights["b_o"].copy()
 
         network.output_layer.set_weights(
-            {"W_y": self._weights["W_y"], "b_y": self._weights["b_y"]}
+            {"W_y": self._weights["W_y"].copy(), "b_y": self._weights["b_y"].copy()}
         )
 
     # == Returns the current weights and biases ng cell == 
@@ -53,6 +53,6 @@ class ModelCheckpoint:
             "W_i": cell.W_i.copy(), "b_i": cell.b_i.copy(),
             "W_c": cell.W_c.copy(), "b_c": cell.b_c.copy(),
             "W_o": cell.W_o.copy(), "b_o": cell.b_o.copy(),
-            "W_y": out_weights["W_y"],
-            "b_y": out_weights["b_y"],
+            "W_y": out_weights["W_y"].copy(),
+            "b_y": out_weights["b_y"].copy(),
         }

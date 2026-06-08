@@ -37,5 +37,5 @@ class OutputLayer:
         return {"W_y": self.W_y.copy(), "b_y": self.b_y.copy()}
 
     def set_weights(self, weights: dict):
-        self.W_y = weights["W_y"]
-        self.b_y = weights["b_y"]
+        self.W_y = weights["W_y"].copy()
+        self.b_y = weights["b_y"].copy()
