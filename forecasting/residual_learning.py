@@ -9,7 +9,14 @@ class ResidualLearning:
         self.sarimax = sarimax
         self.lstm = lstm
 
-    def run(self, endog, exog, trends_test, val_residuals_tail, val_trends_tail, start_date, end_date,
+    def run(self, endog, exog, 
+            trends_test, 
+            sentiment_test,
+            val_residuals_tail, 
+            val_trends_tail, 
+            val_sentiment_tail,
+            start_date, 
+            end_date,
             steps=14, output_csv = "final_forecast.csv",):
         
         # SARIMAX rolling forecast
@@ -25,8 +32,10 @@ class ResidualLearning:
         lstm_corrections = self.lstm.predict(
             residuals=residuals_df["residuals"],
             trends=trends_test,
+            sentiment=sentiment_test,
             val_residuals_tail=val_residuals_tail,
             val_trends_tail=val_trends_tail,
+            val_sentiment_tail=val_sentiment_tail
         )
 
         # Additive fusionn

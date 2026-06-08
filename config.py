@@ -21,6 +21,7 @@ class PathConfig:
     combined_trends_csv: str = "datasets/combined_google_trends_dataset.csv"
     rice_csv: str = "datasets/well_milled_rice_daily_preprocessed.csv"
     enso_csv: str = "datasets/enso_daily.csv"
+    sentiments_csv: str = "datasets/daily_sentiment_scores.csv"
 
     def sarimax_model(self, target: str) -> str:
         return f"checkpoint/sarimax_model_Well-Milled_{target.capitalize()}.pkl"

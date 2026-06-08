@@ -2,7 +2,7 @@ import pandas as pd
 from config import ModelConfig
 from lstm.lstm_network import LSTMNetwork
 from utils.min_max_scaler import MinMaxScaler
-from utils.utils import split_by_chunks
+from utils.utils import split_by_chunks, split_sentiment_classes
 
 
 class LSTM:
@@ -23,7 +23,8 @@ class LSTM:
         return LSTM(network, scaler, config)
 
     # == Prediction ==
-    def predict(self, residuals, trends, val_residuals_tail, val_trends_tail):
+    def predict(self, residuals, trends, sentiment,
+                val_residuals_tail, val_trends_tail, val_sentiment_tail):
         # Input size * number of previous days to include 
         lookback = self.config.lookback
 
@@ -33,8 +34,11 @@ class LSTM:
         # Prepend lookback rows from validation to seed the first window
         full_residuals = pd.concat([val_residuals_tail, residuals])
         full_trends = pd.concat([val_trends_tail, trends])
+        full_sentiment = pd.concat([val_sentiment_tail, sentiment])
 
-        feature_pairs = list(zip(full_residuals, full_trends))
+        pos_test, neu_test, neg_test = split_sentiment_classes(full_sentiment)
+
+        feature_pairs = list(zip(full_residuals, full_trends, pos_test, neu_test, neg_test))
         scaled = self.scaler.transform(feature_pairs)
 
         chunks = split_by_chunks(scaled, lookback)

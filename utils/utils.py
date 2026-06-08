@@ -72,3 +72,6 @@ def create_sequences_multistep(data, lookback, horizon):
 def split_by_chunks(data, chunk_size):
     # Split an array into non-overlapping chunks of chunk_size (for LSTM prediction)
     return [data[i:i + chunk_size] for i in range(0, len(data) - chunk_size + 1, chunk_size)]
+
+def split_sentiment_classes(sentiment_df):
+    return (sentiment_df[c] for c in ['score_positive', 'score_neutral', 'score_negative'])

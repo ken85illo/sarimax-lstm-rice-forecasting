@@ -19,13 +19,21 @@ class DataLoader:
         return df["ONI value"]
 
     # == Loads Google Trends CSV ==
-    def load_trends(self, max_rows = 2312):
+    def load_trends(self, max_rows):
         df = pd.read_csv(self.paths.combined_trends_csv)
         df = df[:max_rows]
         df["Day"] = pd.to_datetime(df["Day"])
         df = df.set_index("Day")
 
         return df["Google Trends"]
+
+    def load_sentiments(self, max_rows):
+        df = pd.read_csv(self.paths.sentiments_csv)
+        df = df[:max_rows]
+        df["Date"] = pd.to_datetime(df["Date"])
+        df = df.set_index("Date")
+        
+        return df
 
     # == Loads SARIMAX Residuals CSV ==
     def load_train_residuals(self, label, col):
