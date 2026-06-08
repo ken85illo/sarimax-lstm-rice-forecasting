@@ -12,7 +12,7 @@ from forecasting import SARIMAX, LSTM, ResidualLearning
 CONFIG = ModelConfig(
     lookback=14,
     horizon=14,
-    hidden_size=64,
+    hidden_size=32,
     learning_rate=0.001,
     epochs=300,
     patience=20,

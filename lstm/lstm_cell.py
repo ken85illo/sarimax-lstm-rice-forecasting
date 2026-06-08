@@ -100,6 +100,15 @@ class LSTMCell:
             + self.W_c[:, : self.hidden_size].T @ dc_tilde
             + self.W_o[:, : self.hidden_size].T @ do_t
         )
+
+        dx_t = (
+            self.W_f[:, self.hidden_size:].T @ df_t 
+            + self.W_i[:, self.hidden_size:].T @ di_t 
+            + self.W_c[:, self.hidden_size:].T @ dc_tilde 
+            + self.W_o[:, self.hidden_size:].T @ do_t
+        )
+        
+
         dc_prev = dc_t * self.f_t
 
-        return dh_prev, dc_prev
+        return dx_t, dh_prev, dc_prev

@@ -8,38 +8,51 @@ class LSTMNetwork:
         self.hidden_size = hidden_size
         self.output_size = output_size
 
-        self.lstm_cell = LSTMCell(input_size, hidden_size)
+        self.lstm_cell_1 = LSTMCell(input_size, hidden_size)
+        self.lstm_cell_2 = LSTMCell(hidden_size, hidden_size)
 
         self.output_layer = OutputLayer(
             hidden_size=hidden_size,
             output_size=output_size,
-            scale=self.lstm_cell.scale,
-            rng=self.lstm_cell.rng,
+            scale=self.lstm_cell_2.scale,
+            rng=self.lstm_cell_2.rng,
         )
 
     def predict(self, X_seq: np.ndarray) -> np.ndarray:
-        h = np.zeros(self.hidden_size)
-        c = np.zeros(self.hidden_size)
-
+        out = self.output_layer
+        h1, c1 = np.zeros(self.hidden_size), np.zeros(self.hidden_size)
+        h2, c2 = np.zeros(self.hidden_size), np.zeros(self.hidden_size)
+        
         for t in range(len(X_seq)):
-            h, c = self.lstm_cell.forward_pass(X_seq[t], h, c)
+            h1, c1 = self.lstm_cell_1.forward_pass(X_seq[t], h1, c1)
+            h2, c2 = self.lstm_cell_2.forward_pass(h1, h2, c2)
 
-        return self.output_layer.forward(h)
+        output = out.W_y @ h2 + out.b_y
+        return output
 
     # == Saving model to avoid retraining everytime ==
     def save_model(self, target: str):
         filename = f"checkpoint/{target}-lstm_model.npz"
-        cell = self.lstm_cell
         out = self.output_layer
+
+        cell_1 = self.lstm_cell_1
+        cell_2 = self.lstm_cell_2
 
         # Saves as .npz na file
         np.savez(
             filename,
-            W_f=cell.W_f, b_f=cell.b_f,
-            W_i=cell.W_i, b_i=cell.b_i,
-            W_c=cell.W_c, b_c=cell.b_c,
-            W_o=cell.W_o, b_o=cell.b_o,
-            W_y=out.W_y,  b_y=out.b_y,
+            # Layer 1
+            c1_W_f=cell_1.W_f, c1_b_f=cell_1.b_f,
+            c1_W_i=cell_1.W_i, c1_b_i=cell_1.b_i,
+            c1_W_c=cell_1.W_c, c1_b_c=cell_1.b_c,
+            c1_W_o=cell_1.W_o, c1_b_o=cell_1.b_o,
+            # Layer 2
+            c2_W_f=cell_2.W_f, c2_b_f=cell_2.b_f,
+            c2_W_i=cell_2.W_i, c2_b_i=cell_2.b_i,
+            c2_W_c=cell_2.W_c, c2_b_c=cell_2.b_c,
+            c2_W_o=cell_2.W_o, c2_b_o=cell_2.b_o,
+            # Output
+            W_y=out.W_y, b_y=out.b_y
         )
 
 
@@ -50,13 +63,21 @@ class LSTMNetwork:
         filename = f"checkpoint/{target}-lstm_model.npz"
 
         data = np.load(filename)
-        cell = self.lstm_cell
         out = self.output_layer
 
-        cell.W_f, cell.b_f = data["W_f"], data["b_f"]
-        cell.W_i, cell.b_i = data["W_i"], data["b_i"]
-        cell.W_c, cell.b_c = data["W_c"], data["b_c"]
-        cell.W_o, cell.b_o = data["W_o"], data["b_o"]
-        out.W_y,  out.b_y  = data["W_y"], data["b_y"]
+        cell_1 = self.lstm_cell_1
+        cell_2 = self.lstm_cell_2
+
+        cell_1.W_f, cell_1.b_f = data['c1_W_f'], data['c1_b_f']
+        cell_1.W_i, cell_1.b_i = data['c1_W_i'], data['c1_b_i']
+        cell_1.W_c, cell_1.b_c = data['c1_W_c'], data['c1_b_c']
+        cell_1.W_o, cell_1.b_o = data['c1_W_o'], data['c1_b_o']
+
+        cell_2.W_f, cell_2.b_f = data['c2_W_f'], data['c2_b_f']
+        cell_2.W_i, cell_2.b_i = data['c2_W_i'], data['c2_b_i']
+        cell_2.W_c, cell_2.b_c = data['c2_W_c'], data['c2_b_c']
+        cell_2.W_o, cell_2.b_o = data['c2_W_o'], data['c2_b_o']
+
+        out.W_y, out.b_y = data['W_y'], data['b_y']
 
         print(f"Model loaded from {filename}")

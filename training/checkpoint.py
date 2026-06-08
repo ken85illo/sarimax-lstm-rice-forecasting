@@ -1,5 +1,3 @@
-from lstm.lstm_network import LSTMNetwork
-
 
 class ModelCheckpoint:
     def __init__(self):
@@ -25,17 +23,22 @@ class ModelCheckpoint:
         if self._weights is None:
             return
         
-        cell = network.lstm_cell
+        cell_1 = network.lstm_cell_1
+        cell_2 = network.lstm_cell_2
 
         # Mainly used to restore yung best weights if no improvement na yung future epochs
-        cell.W_f = self._weights["W_f"]
-        cell.b_f = self._weights["b_f"]
-        cell.W_i = self._weights["W_i"]
-        cell.b_i = self._weights["b_i"]
-        cell.W_c = self._weights["W_c"]
-        cell.b_c = self._weights["b_c"]
-        cell.W_o = self._weights["W_o"]
-        cell.b_o = self._weights["b_o"]
+
+        # Layer 1
+        cell_1.W_f, cell_1.b_f = self._weights['c1_W_f'], self._weights['c1_b_f']
+        cell_1.W_i, cell_1.b_i = self._weights['c1_W_i'], self._weights['c1_b_i']
+        cell_1.W_c, cell_1.b_c = self._weights['c1_W_c'], self._weights['c1_b_c']
+        cell_1.W_o, cell_1.b_o = self._weights['c1_W_o'], self._weights['c1_b_o']
+        
+        # Layer 2
+        cell_2.W_f, cell_2.b_f = self._weights['c2_W_f'], self._weights['c2_b_f']
+        cell_2.W_i, cell_2.b_i = self._weights['c2_W_i'], self._weights['c2_b_i']
+        cell_2.W_c, cell_2.b_c = self._weights['c2_W_c'], self._weights['c2_b_c']
+        cell_2.W_o, cell_2.b_o = self._weights['c2_W_o'], self._weights['c2_b_o']
 
         network.output_layer.set_weights(
             {"W_y": self._weights["W_y"], "b_y": self._weights["b_y"]}
@@ -44,15 +47,21 @@ class ModelCheckpoint:
     # == Returns the current weights and biases ng cell == 
     @staticmethod
     def _snapshot(network):
-        cell = network.lstm_cell
+        cell_1 = network.lstm_cell_1
+        cell_2 = network.lstm_cell_2
 
         out_weights = network.output_layer.get_weights()
 
         return {
-            "W_f": cell.W_f.copy(), "b_f": cell.b_f.copy(),
-            "W_i": cell.W_i.copy(), "b_i": cell.b_i.copy(),
-            "W_c": cell.W_c.copy(), "b_c": cell.b_c.copy(),
-            "W_o": cell.W_o.copy(), "b_o": cell.b_o.copy(),
-            "W_y": out_weights["W_y"],
-            "b_y": out_weights["b_y"],
+            'c1_W_f': cell_1.W_f.copy(), 'c1_b_f': cell_1.b_f.copy(),
+            'c1_W_i': cell_1.W_i.copy(), 'c1_b_i': cell_1.b_i.copy(),
+            'c1_W_c': cell_1.W_c.copy(), 'c1_b_c': cell_1.b_c.copy(),
+            'c1_W_o': cell_1.W_o.copy(), 'c1_b_o': cell_1.b_o.copy(),
+            
+            'c2_W_f': cell_2.W_f.copy(), 'c2_b_f': cell_2.b_f.copy(),
+            'c2_W_i': cell_2.W_i.copy(), 'c2_b_i': cell_2.b_i.copy(),
+            'c2_W_c': cell_2.W_c.copy(), 'c2_b_c': cell_2.b_c.copy(),
+            'c2_W_o': cell_2.W_o.copy(), 'c2_b_o': cell_2.b_o.copy(),
+            "W_y": out_weights["W_y"].copy(),
+            "b_y": out_weights["b_y"].copy(),
         }

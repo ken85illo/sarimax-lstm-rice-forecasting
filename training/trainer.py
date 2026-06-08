@@ -49,58 +49,85 @@ class Trainer:
         epoch_loss = 0.0
 
         for X_seq, y_true in zip(X_train, y_train):
-            h, c, states = self._forward_sequence(X_seq)
+            h2, c2, states = self._forward_sequence(X_seq)
 
             # Output layer forward then compute yung loss (MSE)
-            y_pred = self.network.output_layer.forward(h)
+            y_pred = self.network.output_layer.forward(h2)
             loss = self.network.output_layer.loss(y_pred, y_true)
             dy = self.network.output_layer.loss_derivative(y_pred, y_true)
             epoch_loss += loss
 
             # Output layer backward (returns dh hidden state na ginagamit sa backpropagation)
-            dh = self.network.output_layer.backward(dy, h, self.learning_rate)
+            dh2 = self.network.output_layer.backward(dy, h2, self.learning_rate)
 
             # Backpropagation ng LSTM cell
-            dc = np.zeros(self.network.hidden_size)
-            for state in reversed(states):
-                dh, dc = self.network.lstm_cell.backward_pass(
-                    dh, dc, self.learning_rate, state=state
+            dc2 = np.zeros(self.network.hidden_size)
+            dh1 = np.zeros(self.network.hidden_size)
+            dc1 = np.zeros(self.network.hidden_size)
+
+            for state_1, state_2 in reversed(states):
+                dx2, dh2, dc2 = self.network.lstm_cell_2.backward_pass(
+                    dh2, dc2, self.learning_rate, state=state_2
+                )
+
+                dh1 += dx2
+
+                dx1, dh1, dc1 = self.network.lstm_cell_1.backward_pass(
+                    dh1, dc1, self.learning_rate, state=state_1
                 )
 
         return epoch_loss / len(X_train)
 
     def _forward_sequence(self, X_seq):
-        h = np.zeros(self.network.hidden_size)
-        c = np.zeros(self.network.hidden_size)
-        cell = self.network.lstm_cell
+        h1, c1 = np.zeros(self.network.hidden_size), np.zeros(self.network.hidden_size)
+        h2, c2 = np.zeros(self.network.hidden_size), np.zeros(self.network.hidden_size)
+
+        cell_1 = self.network.lstm_cell_1
+        cell_2 = self.network.lstm_cell_2
+
         states = []
 
         for t in range(len(X_seq)):
             x_t = X_seq[t]
-            h_prev, c_prev = h, c
-            h, c = cell.forward_pass(x_t, h, c)
-            states.append({
-                "x_t":     x_t,
-                "h_prev":  h_prev,
-                "c_prev":  c_prev,
-                "f_t":     cell.f_t,
-                "i_t":     cell.i_t,
-                "c_tilde": cell.c_tilde,
-                "c_t":     cell.c_t,
-                "o_t":     cell.o_t,
-            })
 
-        return h, c, states
+            h1_prev, c1_prev = h1, c1
+            h2_prev, c2_prev = h2, c2
+
+            h1, c1 = cell_1.forward_pass(x_t, h1, c1)
+            h2, c2 = cell_2.forward_pass(h1, h2, c2)
+
+            state_1 = {
+                'x_t': x_t, 'h_prev': h1_prev, 'c_prev': c1_prev,
+                'f_t': cell_1.f_t, 'i_t': cell_1.i_t,
+                'c_tilde': cell_1.c_tilde, 'c_t': cell_1.c_t, 'o_t': cell_1.o_t
+            }
+                    
+            state_2 = {
+                'x_t': h1,  # Critical: Layer 2's input was h1
+                'h_prev': h2_prev, 'c_prev': c2_prev,
+                'f_t': cell_2.f_t, 'i_t': cell_2.i_t,
+                'c_tilde': cell_2.c_tilde, 'c_t': cell_2.c_t, 'o_t': cell_2.o_t
+            }
+
+            states.append((state_1, state_2))
+
+        return h2, c2, states
 
     def _evaluate(self, X_val, y_val) -> float:
         # Compute average MSE on the validation set (no weight updates)
         total = 0.0
+        cell_1 = self.network.lstm_cell_1
+        cell_2 = self.network.lstm_cell_2
+
         for X_seq, y_true in zip(X_val, y_val):
-            h = np.zeros(self.network.hidden_size)
-            c = np.zeros(self.network.hidden_size)
+            h1, c1 = np.zeros(self.network.hidden_size), np.zeros(self.network.hidden_size)
+            h2, c2 = np.zeros(self.network.hidden_size), np.zeros(self.network.hidden_size)
+
             for t in range(len(X_seq)):
-                h, c = self.network.lstm_cell.forward_pass(X_seq[t], h, c)
-            y_pred = self.network.output_layer.forward(h)
+                h1, c1 = cell_1.forward_pass(X_seq[t], h1, c1)
+                h2, c2 = cell_2.forward_pass(h1, h2, c2)
+
+            y_pred = self.network.output_layer.forward(h2)
             total += self.network.output_layer.loss(y_pred, y_true)
         return total / len(X_val)
 
