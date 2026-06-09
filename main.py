@@ -94,9 +94,8 @@ def run_residual_learning_evaluation(target = "high"):
     val_trends_tail = trends_val.iloc[-CONFIG.lookback:]
     val_sentiment_tail = sentiment_val.iloc[-CONFIG.lookback:]
 
-
     residual_learning = ResidualLearning(sarimax, lstm)
-    residual_learning.run(
+    residual_learning.run_rolling(
         endog=endog_test,
         exog=exog_test,
         trends_test=trends_test,
@@ -127,5 +126,5 @@ def sanity_check_overfit():
 
 # == Entry point ==
 if __name__ == "__main__":
-    train_lstm_residuals(target="high")
+    # train_lstm_residuals(target="high")
     run_residual_learning_evaluation(target="high")

@@ -1,8 +1,8 @@
 import numpy as np
+from tabulate import tabulate
 
 
 # == Activation functions for LSTM ==
-
 def sigmoid_function(x):
     # Maps x to (0, 1)
     return 1 / (1 + np.exp(-x))
@@ -75,3 +75,11 @@ def split_by_chunks(data, chunk_size):
 
 def split_sentiment_classes(sentiment_df):
     return (sentiment_df[c] for c in ['score_positive', 'score_neutral', 'score_negative'])
+
+
+def print_tabulation(df, title, showindex=False):
+    table_str = tabulate(df, headers='keys', showindex=showindex)
+
+    table_width = len(table_str.splitlines()[0])
+    print(title.center(table_width))
+    print(table_str)

@@ -3,13 +3,14 @@ import pandas as pd
 from forecasting import SARIMAX
 from forecasting import LSTM
 from utils import mae, mape, rmse
+from utils.utils import print_tabulation
 
 class ResidualLearning:
     def __init__(self, sarimax: SARIMAX, lstm: LSTM):
         self.sarimax = sarimax
         self.lstm = lstm
 
-    def run(self, endog, exog, 
+    def run_rolling(self, endog, exog, 
             trends_test, 
             sentiment_test,
             val_residuals_tail, 
@@ -19,40 +20,60 @@ class ResidualLearning:
             end_date,
             steps=14, output_csv = "final_forecast.csv",):
         
-        # SARIMAX rolling forecast
-        sarimax_forecasts, residuals_df = self.sarimax.rolling_walk_forward(
-            endog_dataset=endog,
-            exog_dataset=exog,
-            start_date=start_date,
-            end_date=end_date,
-            steps=steps,
-        )
+        
+        all_fusion = []
+        all_actuals = []
+        all_sarimax = []
+        all_lstm = []
+        all_dates = []
 
-        # LSTM rolling forecast from residuals
-        lstm_corrections = self.lstm.predict(
-            residuals=residuals_df["residuals"],
-            trends=trends_test,
-            sentiment=sentiment_test,
-            val_residuals_tail=val_residuals_tail,
-            val_trends_tail=val_trends_tail,
-            val_sentiment_tail=val_sentiment_tail
-        )
+        current_date = start_date
 
-        # Additive fusionn
-        actual = endog[start_date:]
-        final_forecast = sarimax_forecasts + lstm_corrections
+        # Seed the LSTM input with the last `lookback` rows from validation
+        lstm_residual_window = val_residuals_tail.copy()  # shape: (14,)
+        lstm_trends_window = val_trends_tail.copy()        # shape: (14,)
+        lstm_sentiment_window = val_sentiment_tail.copy()
+        
+        while current_date <= end_date:
+            window_end = min(current_date + pd.Timedelta(days=steps - 1), end_date)
 
-        # Pang check lang if match pa rin yung dates
-        for s in [sarimax_forecasts, lstm_corrections, actual, final_forecast]:
-            s.index = pd.to_datetime(s.index)
+            # Create exog window for sarimax
+            exog_start = current_date - pd.Timedelta(days=steps)
+            exog_window = exog.loc[exog_start: current_date - pd.Timedelta(days=1)]
+            sarimax_forecast = self.sarimax.walk_forward(exog_window, steps=14)
+            lstm_residuals = self.lstm.predict(
+                lstm_residual_window, lstm_trends_window, lstm_sentiment_window, current_date
+            )
 
-        # Single dataframe para madali nalang i-print
+            fusion_forecast = sarimax_forecast.values + lstm_residuals.flatten()
+
+            actual_window = endog.loc[current_date:window_end]
+            window_dates = actual_window.index.date.tolist()
+            n = len(window_dates)
+
+            all_dates.extend(window_dates)
+            all_actuals.extend(actual_window.values)
+            all_sarimax.extend(sarimax_forecast[:n])
+            all_lstm.extend(lstm_residuals[:n])
+            all_fusion.extend(fusion_forecast[:n])
+
+            lstm_residual_window = (actual_window.values - sarimax_forecast[:n])
+            trends_window = trends_test.loc[current_date:window_end]
+            lstm_trends_window = trends_window[:n]
+            sentiment_window = sentiment_test.loc[current_date:window_end]
+            lstm_sentiment_window = sentiment_window[:n]
+
+            
+            exog_update = exog.loc[current_date:window_end]
+            self.sarimax.update_history(actual_window, exog_update)
+            current_date = window_end + pd.Timedelta(days=1)
+
         comparison = pd.DataFrame({
-            "actual": actual,
-            "sarimax": np.round(sarimax_forecasts[: len(actual)]), # Ni-round ko para hindi decimal yung forecast
-            "residuals": residuals_df["residuals"],
-            "lstm_correction": lstm_corrections[: len(actual)],
-            "final_forecast": np.round(final_forecast[: len(actual)]), # Same here naka round din
+            "Date": all_dates,
+            "Actual": all_actuals,
+            "SARIMAX": np.round(all_sarimax), # Ni-round ko para hindi decimal yung forecast
+            "LSTM Correction": np.array(all_lstm).flatten(),
+            "Final Forecast": np.round(all_fusion), # Same here naka round din
         })
 
         self._report(comparison)
@@ -67,11 +88,12 @@ class ResidualLearning:
     @staticmethod
     def _report(comparison: pd.DataFrame):
         # Prints the final forecast output 
-        print(comparison)
+        print()
+        print_tabulation(comparison.head(10), title="=== RESULTS ===")
 
-        for label, col in [("SARIMAX", "sarimax"), ("RESIDUAL LEARNING", "final_forecast")]:
+        for label, col in [("SARIMAX", "SARIMAX"), ("RESIDUAL LEARNING", "Final Forecast")]:
             pred = comparison[col]
-            actual = comparison["actual"]
+            actual = comparison["Actual"]
 
             # Pa-add nalang here if may kulang pa na metric
             print(f"\n=== {label} ===")
