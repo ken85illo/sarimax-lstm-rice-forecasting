@@ -46,24 +46,10 @@ async def process_csv(sarimax_input_file: UploadFile = File(...), lstm_input_fil
     
     run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, sentiment_df)
     
-    base_dir = os.path.dirname(__file__)
-    output_dir = os.path.join(base_dir, "output")
-    csv_files = ["final_forecast_high.csv", "final_forecast_low.csv"]
+    df_high_forecast = pd.read_csv("output/final_demo_prediction_high.csv")
+    df_low_forecast = pd.read_csv("output/final_demo_prediction_low.csv")
 
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for csv_file in csv_files:
-            path = os.path.join(output_dir, csv_file)
-            if not os.path.exists(path):
-                return {"error": f"Output file not found: {csv_file}"}
-
-            archive.write(path, arcname=csv_file)
-
-    buffer.seek(0)
-
-    print("RETURNING FINAL FORECAST CSV")
-    return StreamingResponse(
-        buffer,
-        media_type="application/zip",
-        headers={"Content-Disposition": "attachment; filename=output_csv.zip"},
-    )
+    return {
+        "high_forecast": df_high_forecast.to_dict(orient="records"),
+        "low_forecast": df_low_forecast.to_dict(orient="records")
+    }

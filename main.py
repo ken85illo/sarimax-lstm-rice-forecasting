@@ -80,11 +80,11 @@ def run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, 
 
     # LSTM models for Well-Milled Low and High
     lstm_high = LSTM.load("high-test", CONFIG, scaler_target="high") 
-    lstm_low = LSTM.load("low-test", CONFIG, scaler_target="high")
+    lstm_low = LSTM.load("low-test", CONFIG, scaler_target="low")
 
     # SARIMAX models for Well-Milled Low and High
-    residual_learning_low = ResidualLearning(sarimax_low, lstm_low)
-    residual_learning_high = ResidualLearning(sarimax_high, lstm_high)
+    residual_learning_low = ResidualLearning(sarimax_low, lstm_low, "low")
+    residual_learning_high = ResidualLearning(sarimax_high, lstm_high, "high")
     
     enso_original = loader.load_enso()
     
@@ -104,7 +104,6 @@ def run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, 
 
     test_trends_tail = trends_test.iloc[-CONFIG.lookback:]
     test_sentiment_tail = sentiment_test.iloc[-CONFIG.lookback:]
-    
     
     residual_learning_low.run_rolling(
         endog=rice_low_df,

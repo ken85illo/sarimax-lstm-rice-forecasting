@@ -6,9 +6,13 @@ from utils import mae, mape, rmse
 from utils.utils import print_tabulation
 
 class ResidualLearning:
-    def __init__(self, sarimax: SARIMAX, lstm: LSTM):
+    def __init__(self, sarimax: SARIMAX, lstm: LSTM, target):
         self.sarimax = sarimax
         self.lstm = lstm
+
+        self.target = target
+        sarimax.target = target
+        lstm.target = target
 
     def run_rolling(self, endog, exog, 
             trends_test, 
@@ -38,19 +42,16 @@ class ResidualLearning:
         while current_date <= end_date:
             window_end = min(current_date + pd.Timedelta(days=steps - 1), end_date)
 
-            # Create exog window for sarimax
-            exog_start = current_date - pd.Timedelta(days=steps)
-            exog_window = exog.loc[exog_start: current_date - pd.Timedelta(days=1)]
-
-            sarimax_forecast = self.sarimax.walk_forward(exog_window, steps=14)
-
-            # Feed residual, trends, and sentiment window to LSTM
-            lstm_prediction = self.lstm.predict(
-                lstm_residual_window, lstm_trends_window, lstm_sentiment_window, current_date
+            # Get exogenous window (ENSO)
+            exog_window = self._get_exog_window(
+                exog,current_date, steps
             )
 
-            # Fusion of SARIMAX and LSTM residuals (Residual Learning)
-            fusion_forecast = sarimax_forecast.values + lstm_prediction.flatten()
+            # Forecast one step
+            sarimax_forecast, lstm_prediction, fusion_forecast = self._forecast_one_step(
+                exog_window, lstm_residual_window, lstm_trends_window, 
+                lstm_sentiment_window, current_date
+            )
 
             # Get the actual data at window
             actual_window = endog.loc[current_date:window_end]
@@ -78,6 +79,7 @@ class ResidualLearning:
             self.sarimax.update_history(actual_window, exog_update)
             current_date = window_end + pd.Timedelta(days=1)
 
+
         comparison = pd.DataFrame({
             "Date": all_dates,
             "Actual": all_actuals,
@@ -93,34 +95,93 @@ class ResidualLearning:
             "Residuals": all_residuals
         })
 
-        self._save_csv(target_csv, comparison, residuals, is_test_set)
+        exog_window = self._get_exog_window(exog, current_date, steps)
+
+        # Final forecast step
+        lstm_residual_window = all_residuals[-steps:]
+        lstm_trends_window = trends_test.iloc[-steps:]
+        lstm_sentiment_window = sentiment_test.iloc[-steps:]
+        sarimax_forecast, _,  fusion_forecast = self._forecast_one_step(
+            exog_window, lstm_residual_window, lstm_trends_window, 
+            lstm_sentiment_window, current_date
+        )
+
+        forecast_dates = [current_date.date() + pd.Timedelta(days=t) for t in range(len(fusion_forecast)) ]
+        forecast = pd.DataFrame({
+            "Date": forecast_dates,
+            "SARIMAX Forecast": np.round(sarimax_forecast.values),
+            "Residual Forecast": np.round(fusion_forecast.flatten()),
+        })
+        print()
+        target = f"({self.target})"
+        print_tabulation(forecast, title=f"=== FORECAST {target}===")
+                
+        self._save_csv(target_csv, comparison, residuals, forecast, is_test_set)
 
         return comparison
 
         
-    def _save_csv(self,target_csv, comparison, residuals, is_test_set = True):
+    def _forecast_one_step(
+        self, exog_window, lstm_residual_window, lstm_trends_window,
+        lstm_sentiment_window, current_date
+    ):
+        sarimax_forecast = self.sarimax.walk_forward(exog_window, steps=14)
+
+        # Feed residual, trends, and sentiment window to LSTM
+        lstm_prediction = self.lstm.predict(
+            lstm_residual_window, lstm_trends_window, lstm_sentiment_window, current_date
+        )
+
+        # Fusion of SARIMAX and LSTM residuals (Residual Learning)
+        fusion_forecast = sarimax_forecast.values + lstm_prediction.flatten()
+
+        return sarimax_forecast, lstm_prediction, fusion_forecast
+
+    def _get_exog_window(self, exog, current_date, steps):
+        # Create exog window for sarimax
+        exog_start = current_date - pd.Timedelta(days=steps)
+        exog_window = exog.loc[exog_start: current_date - pd.Timedelta(days=1)]
+
+        return exog_window
+
+        
+    def _save_csv(self,target_csv, comparison, residuals, forecast, is_test_set = True):
         prefix = "test" if is_test_set else "final"
         if target_csv:
-            output_csv = f"output/{prefix}_forecast_{target_csv}.csv"
-            test_csv = f"output/{prefix}_residuals_{target_csv}.csv"
+            demo_csv = f"output/{prefix}_demo_prediction_{target_csv}.csv"
+            resid_csv = f"output/{prefix}_demo_residuals_{target_csv}.csv"
+            forecast_csv = f"output/{prefix}_forecast_{target_csv}.csv"
 
-            comparison.to_csv(output_csv)
-            residuals.to_csv(test_csv)
-            print(f"\nResults saved to {output_csv}")
+            comparison.to_csv(demo_csv)
+            residuals.to_csv(resid_csv)
+            forecast.to_csv(forecast_csv)
+
+            print(f"\nDemo Comparison saved to {demo_csv}")
+            print(f"Residuals saved to {resid_csv}")
+            print(f"Forecast saved to {forecast_csv}")
 
     # == Just another method for printing sa terminal == 
     @staticmethod
     def _report(comparison: pd.DataFrame):
+        errors_df = pd.DataFrame()
+        
         # Prints the final forecast output 
         print()
         print_tabulation(comparison.head(10), title="=== RESULTS ===")
-
+        
         for label, col in [("SARIMAX", "SARIMAX"), ("RESIDUAL LEARNING", "Final Forecast")]:
             pred = comparison[col]
             actual = comparison["Actual"]
+            
+            rmse_score = rmse(pred, actual)
+            mae_score = mae(pred, actual)
+            mape_score = mape(pred, actual)
 
+            df_row = pd.DataFrame([{'model': label, 'rmse': rmse_score, 'mae': mae_score, 'mape': mape_score}])
+            errors_df = pd.concat([errors_df, df_row], ignore_index=True)
+            
             # Pa-add nalang here if may kulang pa na metric
             print(f"\n=== {label} ===")
-            print(f"RMSE:  {rmse(pred, actual):.4f}")
-            print(f"MAE:   {mae(pred, actual):.4f}")
-            print(f"MAPE:  {mape(pred, actual):.4f}%")
+            print(f"RMSE:  {rmse_score:.4f}")
+            print(f"MAE:   {mae_score:.4f}")
+            print(f"MAPE:  {mape_score:.4f}%")

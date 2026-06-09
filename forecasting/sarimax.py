@@ -8,6 +8,7 @@ from config import PathConfig
 class SARIMAX:
     def __init__(self, model: SARIMAXResultsWrapper):
         self.model = model
+        self.target = ""
 
     # == Loads the SARIMAX model that we trained sa Colab ==
     @classmethod
@@ -39,7 +40,6 @@ class SARIMAX:
     def walk_forward(self, exog_window, steps=14):
         # Use the previous `steps` days of exogenous data as input
         # Executes actual prediction/forecasting
-        print(exog_window)
         forecast = self.model.get_forecast(steps=steps, exog=exog_window)
 
         # Basically creates formatted series of the forecast output
@@ -52,7 +52,8 @@ class SARIMAX:
             "Forecast": forecast_df.values
         })
         print()
-        print_tabulation(print_df, title="=== SARIMAX FORECAST ===")
+        target = f"({self.target.capitalize()}) "
+        print_tabulation(print_df, title=f"=== SARIMAX FORECAST {target}===")
 
         return forecast_df
 

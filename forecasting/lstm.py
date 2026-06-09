@@ -10,6 +10,7 @@ class LSTM:
         self.network = network
         self.scaler = scaler
         self.config = config
+        self.target = ""
 
     # == Load LSTM with Config and Scaler ==
     @classmethod
@@ -44,6 +45,7 @@ class LSTM:
         input_dates = [window_start + pd.Timedelta(days=t) for t in range(len(inverse_input)) ]
         output_dates = [current_date + pd.Timedelta(days=t) for t in range(len(predicted)) ]
 
+
         print_df = pd.DataFrame({
             "Input": input_dates,
             "Residual": inverse_input[:, 0],
@@ -55,6 +57,7 @@ class LSTM:
             "Prediction": predicted.flatten(),
         })
         print()
-        print_tabulation(print_df, title="=== LSTM CORRECTION ===")
+        target = f"({self.target.capitalize()}) "
+        print_tabulation(print_df, title=f"=== LSTM CORRECTION {target}===")
 
 
