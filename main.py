@@ -162,7 +162,7 @@ def run_residual_learning_test_set(target = "high"):
     val_trends_tail = trends_val.iloc[-CONFIG.lookback:]
     val_sentiment_tail = sentiment_val.iloc[-CONFIG.lookback:]
 
-    residual_learning = ResidualLearning(sarimax, lstm)
+    residual_learning = ResidualLearning(sarimax, lstm, target=target)
     residual_learning.run_rolling(
         endog=endog_test,
         exog=exog_test,

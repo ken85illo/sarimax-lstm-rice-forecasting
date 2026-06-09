@@ -6,7 +6,7 @@ import os
 import io
 import zipfile
 
-from main import run_residual_forecast
+from main import run_residual_forecast, run_residual_learning_test_set
 from utils import validate_input_dataframe, extract_lstm_inputs, extract_sarimax_inputs
 
 app = FastAPI()
@@ -43,6 +43,9 @@ async def process_csv(sarimax_input_file: UploadFile = File(...), lstm_input_fil
 
     rice_low_df, rice_high_df, enso_df = extract_sarimax_inputs(sarimax_input_df)
     google_trends_df, sentiment_df = extract_lstm_inputs(lstm_input_df)
+
+    run_residual_learning_test_set("high")
+    run_residual_learning_test_set("low")
     
     run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, sentiment_df)
     

@@ -33,5 +33,5 @@ class PathConfig:
         return f"{self.datasets_dir}/sarimax_val_residuals_Well-Milled_{label.capitalize()}.csv"
 
     def test_residuals(self, label: str) -> str:
-        return f"output/test_residuals_{label}.csv"
+        return f"output/test_demo_residuals_{label}.csv"
         
