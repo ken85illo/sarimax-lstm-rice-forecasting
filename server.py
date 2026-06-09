@@ -40,6 +40,10 @@ async def process_csv(sarimax_input_file: UploadFile = File(...), lstm_input_fil
             "status": "Input Validation Error",
             "errors": validation_errors,
         }
+    
+    
+    print(sarimax_input_df)
+    print(lstm_input_df)
 
     rice_low_df, rice_high_df, enso_df = extractSARIMAXInputs(sarimax_input_df)
     google_trends_df, sent_pos_df, sent_neg_df, sent_neut_df = extractLSTMInputs(lstm_input_df)

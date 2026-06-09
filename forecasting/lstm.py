@@ -2,7 +2,7 @@ import pandas as pd
 from config import ModelConfig
 from lstm.lstm_network import LSTMNetwork
 from utils.min_max_scaler import MinMaxScaler
-from utils.utils import split_by_chunks, split_sentiment_classes
+from utils.utils import print_tabulation, split_by_chunks, split_sentiment_classes
 
 
 class LSTM:
@@ -23,56 +23,38 @@ class LSTM:
         return LSTM(network, scaler, config)
 
     # == Prediction ==
-    def predict(self, residuals, trends, sentiment,
-                val_residuals_tail, val_trends_tail, val_sentiment_tail):
-        # Input size * number of previous days to include 
-        lookback = self.config.lookback
+    def predict(self, residual_window, trends_window, sentiment_window, current_date):
+        pos_window, neu_window, neg_window = split_sentiment_classes(sentiment_window)
+        feature_pairs = list(zip(residual_window, trends_window, pos_window, neu_window, neg_window))
+        scaled_input = self.scaler.transform(feature_pairs)
 
-        # Number of days to forecast
-        horizon = self.config.output_size
+        raw_pred = self.network.predict(scaled_input).reshape(-1, 1)
+        predicted = self.scaler.inverse_transform_feature(raw_pred, 0)
 
-        # Prepend lookback rows from validation to seed the first window
-        full_residuals = pd.concat([val_residuals_tail, residuals])
-        full_trends = pd.concat([val_trends_tail, trends])
-        full_sentiment = pd.concat([val_sentiment_tail, sentiment])
-
-        pos_test, neu_test, neg_test = split_sentiment_classes(full_sentiment)
-
-        feature_pairs = list(zip(full_residuals, full_trends, pos_test, neu_test, neg_test))
-        scaled = self.scaler.transform(feature_pairs)
-
-        chunks = split_by_chunks(scaled, lookback)
-        date_chunks = split_by_chunks(full_residuals.index, lookback)
-
-        forecasts, dates = [], []
-        for X_seq, date_window in zip(chunks, date_chunks):
-            raw_pred = self.network.predict(X_seq).reshape(-1, 1)
-            predicted = self.scaler.inverse_transform_feature(raw_pred, 0)
-
-            self._print_window(X_seq, date_window, predicted, horizon)
-
-            last_date = date_window[-1]
-            for j in range(1, horizon + 1):
-                forecast_date = last_date + pd.Timedelta(days=j)
-                forecasts.extend(predicted[j - 1])
-                dates.append(forecast_date)
-
-        return pd.Series(forecasts, index=dates)
+        self._print_window(scaled_input, predicted, current_date)
+        return predicted
 
     # Pang print lang sa terminal
-    def _print_window(self, X_seq, date_window, predicted, horizon):
+    def _print_window(self, scaled_input, predicted, current_date):
         # Reverses (0-1) from min-max scaler back to normal rice price value
-        inv = self.scaler.inverse_transform(X_seq)
+        inverse_input = self.scaler.inverse_transform(scaled_input)
+        current_date = current_date.date()
+        window_start = current_date - pd.Timedelta(days=len(predicted))
 
-        print(f"Date: {date_window[0].date()}\nInput:")
-        for j, row in enumerate(inv):
-            print(f"  {row} => {date_window[j].date()}")
+        input_dates = [window_start + pd.Timedelta(days=t) for t in range(len(inverse_input)) ]
+        output_dates = [current_date + pd.Timedelta(days=t) for t in range(len(predicted)) ]
 
-        last_date = date_window[-1]
-        print("Predicted:")
-        for j in range(1, horizon + 1):
-            fd = last_date + pd.Timedelta(days=j)
-            print(f"  {predicted[j - 1]} => {fd.date()}")
-            
+        print_df = pd.DataFrame({
+            "Input": input_dates,
+            "Residual": inverse_input[:, 0],
+            "Google Trends": inverse_input[:, 1],
+            "Positive": inverse_input[:, 2],
+            "Neutral": inverse_input[:, 3],
+            "Negative": inverse_input[:, 3],
+            "Output": output_dates,
+            "Prediction": predicted.flatten(),
+        })
         print()
+        print_tabulation(print_df, title="=== LSTM CORRECTION ===")
+
 

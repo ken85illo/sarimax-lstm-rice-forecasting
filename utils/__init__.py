@@ -12,7 +12,8 @@ from .utils import (
     create_sequences,
     create_sequences_multistep,
     split_by_chunks,
-    split_sentiment_classes
+    split_sentiment_classes,
+    print_tabulation,
 )
  
 __all__ = [
@@ -29,6 +30,7 @@ __all__ = [
     "create_sequences",
     "create_sequences_multistep",
     "split_by_chunks",
-    "split_sentiment_classes"
+    "split_sentiment_classes",
+    "print_tabulation"
 ]
 
