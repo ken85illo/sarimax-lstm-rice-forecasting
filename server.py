@@ -40,20 +40,18 @@ async def process_csv(sarimax_input_file: UploadFile = File(...), lstm_input_fil
             "status": "Input Validation Error",
             "errors": validation_errors,
         }
-    
-    
-    print(sarimax_input_df)
-    print(lstm_input_df)
 
     rice_low_df, rice_high_df, enso_df = extractSARIMAXInputs(sarimax_input_df)
-    google_trends_df, sent_pos_df, sent_neg_df, sent_neut_df = extractLSTMInputs(lstm_input_df)
+    google_trends_df, sentiment_df = extractLSTMInputs(lstm_input_df)
+    
+    
 
     # Temporarily return muna
-    return 
+    # return 
 
     # The logic here moving forward is formatting of return file
     # To be continued..
-    run_residual_learning_evaluation("high")
+    # run_residual_learning_evaluation("high")
     
     base_dir = os.path.dirname(__file__)
     output_dir = os.path.join(base_dir, "output")
@@ -69,8 +67,10 @@ async def process_csv(sarimax_input_file: UploadFile = File(...), lstm_input_fil
             archive.write(path, arcname=csv_file)
 
     buffer.seek(0)
+
+    print("RETURNING FINAL FORECAST CSV")
     return StreamingResponse(
         buffer,
         media_type="application/zip",
-        headers={"Content-Disposition": "attachment; filename=output_csvs.zip"},
+        headers={"Content-Disposition": "attachment; filename=output_csv.zip"},
     )

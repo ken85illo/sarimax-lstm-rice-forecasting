@@ -106,8 +106,12 @@ def run_residual_learning_evaluation(target = "high"):
         start_date=test_start,
         end_date=test_end,
         steps=CONFIG.horizon,
-        output_csv=f"output/final_forecast_{target}.csv",
+        target_csv=target
     )
+
+    # Used just to save the model after test set
+    # sarimax.save_model(f"{target}-test")
+    # lstm.network.save_model(f"{target}-test")
 
 # == Sanity Check == 
 def sanity_check_overfit():

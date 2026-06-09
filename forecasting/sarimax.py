@@ -26,6 +26,15 @@ class SARIMAX:
         except FileNotFoundError:
             raise FileNotFoundError(f"SARIMAX not found at '{filename}'.")
 
+    # == Saves the newly updated SARIMAX model ==
+    def save_model(self, target, paths: PathConfig | None = None):
+        paths = paths or PathConfig()
+        filename = paths.sarimax_model(target)
+        
+        # statsmodels wrapper objects have a built-in .save() method
+        self.model.save(filename)
+        print(f"Successfully saved updated SARIMAX model to {filename}")
+
     # == Walk forward forecast of SARIMAX ==
     def walk_forward(self, exog_window, steps=14):
         # Use the previous `steps` days of exogenous data as input

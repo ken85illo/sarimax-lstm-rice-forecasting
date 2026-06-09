@@ -70,8 +70,6 @@ def extractLSTMInputs(df):
     google_trends_df = df_prepared[["Google Trends"]].copy()
 
     # Sentiment Scores
-    sent_pos_df = df_prepared[["score_positive"]].copy()
-    sent_neg_df = df_prepared[["score_negative"]].copy()
-    sent_neut_df = df_prepared[["score_neutral"]].copy()
+    sentiment__df = df_prepared[["score_positive", "score_negative", "score_neutral"]].copy()
     
-    return google_trends_df, sent_pos_df, sent_neg_df, sent_neut_df
+    return google_trends_df, sentiment__df
