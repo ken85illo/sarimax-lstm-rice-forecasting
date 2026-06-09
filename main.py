@@ -66,10 +66,79 @@ def train_lstm_residuals(target = "high"):
     trainer.train(X_train, y_train, X_val, y_val)
     network.save_model(target)
 
+def run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, sentiment_df):
+    if (rice_low_df.index.min() != rice_high_df.index.min() or 
+        rice_low_df.index.max() != rice_high_df.index.max()):
+        return
+    
+    earliest_date = rice_low_df.index.min() 
+    latest_date = rice_low_df.index.max()
 
+    # SARIMAX models for Well-Milled Low and High
+    sarimax_high = SARIMAX.load("high-test", PATHS)
+    sarimax_low = SARIMAX.load("low-test", PATHS)
 
-# == Residual Learning Evaluation ==
-def run_residual_learning_evaluation(target = "high"):
+    # LSTM models for Well-Milled Low and High
+    lstm_high = LSTM.load("high-test", CONFIG, scaler_target="high") 
+    lstm_low = LSTM.load("low-test", CONFIG, scaler_target="high")
+
+    # SARIMAX models for Well-Milled Low and High
+    residual_learning_low = ResidualLearning(sarimax_low, lstm_low)
+    residual_learning_high = ResidualLearning(sarimax_high, lstm_high)
+    
+    enso_original = loader.load_enso()
+    
+    last_enso = enso_df.index[0] - pd.Timedelta(days=CONFIG.lookback)
+    last_enso_df = enso_original[enso_original.index >= last_enso]
+    extended_enso_df = pd.concat([last_enso_df, enso_df])
+    
+    # Test tails (last 14 days ng test to be passed as input)
+    test_resid_high = loader.load_test_residuals("high")
+    test_resid_low = loader.load_test_residuals("low")
+
+    test_resid_high_tail = test_resid_high.iloc[-CONFIG.lookback:]
+    test_resid_low_tail = test_resid_low.iloc[-CONFIG.lookback:]
+
+    _, _ , trends_test = split_trends()
+    _, _, sentiment_test = split_sentiments()
+
+    test_trends_tail = trends_test.iloc[-CONFIG.lookback:]
+    test_sentiment_tail = sentiment_test.iloc[-CONFIG.lookback:]
+    
+    
+    residual_learning_low.run_rolling(
+        endog=rice_low_df,
+        exog=extended_enso_df,
+        trends_test=google_trends_df,
+        sentiment_test=sentiment_df,
+        residuals_tail=test_resid_low_tail,
+        trends_tail=test_trends_tail,
+        sentiment_tail=test_sentiment_tail,
+        start_date=earliest_date,
+        end_date=latest_date,
+        steps=CONFIG.horizon,
+        target_csv="low",
+        is_test_set=False
+    )
+
+    residual_learning_high.run_rolling(
+        endog=rice_high_df,
+        exog=extended_enso_df,
+        trends_test=google_trends_df,
+        sentiment_test=sentiment_df,
+        residuals_tail=test_resid_high_tail,
+        trends_tail=test_trends_tail,
+        sentiment_tail=test_sentiment_tail,
+        start_date=earliest_date,
+        end_date=latest_date,
+        steps=CONFIG.horizon,
+        target_csv='high',
+        is_test_set=False
+    )
+    
+
+# == Residual Learning for Test Set ==
+def run_residual_learning_test_set(target = "high"):
     print(f"=== Residual Learning Evaluation: Well-Milled {target.capitalize()} ===")
 
     rice_df = loader.load_rice()
@@ -100,18 +169,19 @@ def run_residual_learning_evaluation(target = "high"):
         exog=exog_test,
         trends_test=trends_test,
         sentiment_test=sentiment_test,
-        val_residuals_tail=val_resid_tail,
-        val_trends_tail=val_trends_tail,
-        val_sentiment_tail=val_sentiment_tail,
+        residuals_tail=val_resid_tail,
+        trends_tail=val_trends_tail,
+        sentiment_tail=val_sentiment_tail,
         start_date=test_start,
         end_date=test_end,
         steps=CONFIG.horizon,
-        target_csv=target
+        target_csv=target,
+        is_test_set=True
     )
 
     # Used just to save the model after test set
-    # sarimax.save_model(f"{target}-test")
-    # lstm.network.save_model(f"{target}-test")
+    sarimax.save_model(f"{target}-test")
+    lstm.network.save_model(f"{target}-test")
 
 # == Sanity Check == 
 def sanity_check_overfit():
@@ -131,4 +201,5 @@ def sanity_check_overfit():
 # == Entry point ==
 if __name__ == "__main__":
     # train_lstm_residuals(target="high")
-    run_residual_learning_evaluation(target="high")
+    run_residual_learning_test_set(target="high")
+    run_residual_learning_test_set(target="low")

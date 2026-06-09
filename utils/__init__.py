@@ -15,6 +15,12 @@ from .utils import (
     split_sentiment_classes,
     print_tabulation,
 )
+
+from .backend_utils import (
+    extract_sarimax_inputs, 
+    extract_lstm_inputs, 
+    validate_input_dataframe
+)
  
 __all__ = [
     "MinMaxScaler"
@@ -31,6 +37,9 @@ __all__ = [
     "create_sequences_multistep",
     "split_by_chunks",
     "split_sentiment_classes",
-    "print_tabulation"
+    "print_tabulation",
+    "extract_sarimax_inputs",
+    "extract_lstm_inputs",
+    "validate_input_dataframe"
 ]
 

@@ -6,8 +6,8 @@ import os
 import io
 import zipfile
 
-from main import run_residual_learning_evaluation
-from utils.backendutils import validate_input_dataframe, extractLSTMInputs, extractSARIMAXInputs
+from main import run_residual_forecast
+from utils import validate_input_dataframe, extract_lstm_inputs, extract_sarimax_inputs
 
 app = FastAPI()
 
@@ -41,17 +41,10 @@ async def process_csv(sarimax_input_file: UploadFile = File(...), lstm_input_fil
             "errors": validation_errors,
         }
 
-    rice_low_df, rice_high_df, enso_df = extractSARIMAXInputs(sarimax_input_df)
-    google_trends_df, sentiment_df = extractLSTMInputs(lstm_input_df)
+    rice_low_df, rice_high_df, enso_df = extract_sarimax_inputs(sarimax_input_df)
+    google_trends_df, sentiment_df = extract_lstm_inputs(lstm_input_df)
     
-    
-
-    # Temporarily return muna
-    # return 
-
-    # The logic here moving forward is formatting of return file
-    # To be continued..
-    # run_residual_learning_evaluation("high")
+    run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, sentiment_df)
     
     base_dir = os.path.dirname(__file__)
     output_dir = os.path.join(base_dir, "output")

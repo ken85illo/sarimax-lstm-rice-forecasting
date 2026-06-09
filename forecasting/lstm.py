@@ -13,12 +13,12 @@ class LSTM:
 
     # == Load LSTM with Config and Scaler ==
     @classmethod
-    def load(LSTM, target, config: ModelConfig):
+    def load(LSTM, target, config: ModelConfig, scaler_target=None):
         network = LSTMNetwork(input_size=config.input_size, hidden_size=config.hidden_size, output_size=config.output_size)
         network.load_model(target)
 
         scaler = MinMaxScaler()
-        scaler.load_scaler(target)
+        scaler.load_scaler(scaler_target if scaler_target else target)
 
         return LSTM(network, scaler, config)
 

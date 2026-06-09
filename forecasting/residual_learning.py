@@ -13,12 +13,12 @@ class ResidualLearning:
     def run_rolling(self, endog, exog, 
             trends_test, 
             sentiment_test,
-            val_residuals_tail, 
-            val_trends_tail, 
-            val_sentiment_tail,
+            residuals_tail,
+            trends_tail, 
+            sentiment_tail,
             start_date, 
             end_date,
-            steps=14, target_csv=None,):
+            steps=14, target_csv=None, is_test_set=True):
         
         
         all_fusion = []
@@ -31,9 +31,9 @@ class ResidualLearning:
         current_date = start_date
 
         # Seed the LSTM input with the last `lookback` rows from validation
-        lstm_residual_window = val_residuals_tail.copy()  # shape: (14,)
-        lstm_trends_window = val_trends_tail.copy()        # shape: (14,)
-        lstm_sentiment_window = val_sentiment_tail.copy()
+        lstm_residual_window = residuals_tail.copy()  # shape: (14,)
+        lstm_trends_window = trends_tail.copy()        # shape: (14,)
+        lstm_sentiment_window = sentiment_tail.copy()
         
         while current_date <= end_date:
             window_end = min(current_date + pd.Timedelta(days=steps - 1), end_date)
@@ -41,6 +41,7 @@ class ResidualLearning:
             # Create exog window for sarimax
             exog_start = current_date - pd.Timedelta(days=steps)
             exog_window = exog.loc[exog_start: current_date - pd.Timedelta(days=1)]
+
             sarimax_forecast = self.sarimax.walk_forward(exog_window, steps=14)
 
             # Feed residual, trends, and sentiment window to LSTM
@@ -65,7 +66,7 @@ class ResidualLearning:
 
             # Calculate the next residual by subtracting actual with SARIMAX forecast
             lstm_residual_window = (actual_window.values - sarimax_forecast[:n])
-            
+
             # Get the next Trends and Sentiment window
             trends_window = trends_test.loc[current_date:window_end]
             lstm_trends_window = trends_window[:n]
@@ -87,24 +88,24 @@ class ResidualLearning:
 
         self._report(comparison)
 
-        test_residuals = pd.DataFrame({
+        residuals = pd.DataFrame({
             "Date": all_dates,
             "Residuals": all_residuals
         })
 
-        self._save_csv(target_csv, comparison, test_residuals)
-
+        self._save_csv(target_csv, comparison, residuals, is_test_set)
 
         return comparison
 
         
-    def _save_csv(self,target_csv, comparison, test_residuals):
+    def _save_csv(self,target_csv, comparison, residuals, is_test_set = True):
+        prefix = "test" if is_test_set else "final"
         if target_csv:
-            output_csv = f"output/final_forecast_{target_csv}.csv"
-            test_csv = f"output/test_residuals_{target_csv}.csv"
+            output_csv = f"output/{prefix}_forecast_{target_csv}.csv"
+            test_csv = f"output/{prefix}_residuals_{target_csv}.csv"
 
             comparison.to_csv(output_csv)
-            test_residuals.to_csv(test_csv)
+            residuals.to_csv(test_csv)
             print(f"\nResults saved to {output_csv}")
 
     # == Just another method for printing sa terminal == 

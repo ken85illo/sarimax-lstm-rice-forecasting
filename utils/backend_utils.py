@@ -47,27 +47,32 @@ def validate_input_dataframe(df_sarimax_input, df_lstm_input, min_date=MIN_INPUT
 
     return len(errors) == 0, errors
 
-def extractSARIMAXInputs(df):
+def extract_sarimax_inputs(df):
+    # Convert the 'Date' column to actual datetime objects
+    df["Date"] = pd.to_datetime(df["Date"])
+
     df = df.set_index("Date")
     df_prepared = df.sort_index()
 
     # Rice Prices (Low and High) 
-    rice_low_df = df_prepared[["Well-Milled Low"]].copy()
-    rice_high_df = df_prepared[["Well-Milled High"]].copy()
+    rice_low_df = df_prepared["Well-Milled Low"].copy()
+    rice_high_df = df_prepared["Well-Milled High"].copy()
 
     # ENSO Index
-    enso_df = df_prepared[["ONI value"]].copy()
+    enso_df = df_prepared["ONI value"].copy()
 
     return rice_low_df, rice_high_df, enso_df
 
 
-def extractLSTMInputs(df):
-    """Return google trends and sentiment series (as DataFrames) indexed by Date."""
+def extract_lstm_inputs(df):
+    # Convert the 'Date' column to actual datetime objects
+    df["Date"] = pd.to_datetime(df["Date"])
+
     df = df.set_index("Date")
     df_prepared = df.sort_index()
     
     # Google Trends SVI
-    google_trends_df = df_prepared[["Google Trends"]].copy()
+    google_trends_df = df_prepared["Google Trends"].copy()
 
     # Sentiment Scores
     sentiment__df = df_prepared[["score_positive", "score_negative", "score_neutral"]].copy()

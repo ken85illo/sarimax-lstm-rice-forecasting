@@ -39,6 +39,7 @@ class SARIMAX:
     def walk_forward(self, exog_window, steps=14):
         # Use the previous `steps` days of exogenous data as input
         # Executes actual prediction/forecasting
+        print(exog_window)
         forecast = self.model.get_forecast(steps=steps, exog=exog_window)
 
         # Basically creates formatted series of the forecast output
