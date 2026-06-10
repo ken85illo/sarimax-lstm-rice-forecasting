@@ -9,7 +9,7 @@ class OutputLayer:
         self.hidden_size = hidden_size
         self.output_size = output_size
 
-        self.W_y = scale * rng.normal(0.0, 0.1, (output_size, hidden_size))
+        self.W_y = rng.normal(0.0, scale, (output_size, hidden_size))
         self.b_y = np.zeros(output_size)
 
     # == Similar to forward pass, updates yung weights and bias ==

@@ -2,14 +2,10 @@ import numpy as np
 from utils import sigmoid_function, sigmoid_derivative, tanh_function, tanh_derivative
 
 class LSTMCell:
-    RNG_MEAN = 0.0
-    RNG_STD_DEV = 0.1
-    DEFAULT_SCALE = 0.1
-
     def __init__(self, input_size, hidden_size):
         self.input_size = input_size
         self.hidden_size = hidden_size
-        self.scale = self.DEFAULT_SCALE
+        self.scale =  np.sqrt(2.0 / (hidden_size + input_size))
 
         # I think add tayo here ng set seed
         self.rng = np.random.default_rng()
@@ -17,19 +13,19 @@ class LSTMCell:
         shape = (hidden_size, hidden_size + input_size)
 
         # Forget gate
-        self.W_f = self.scale * self.rng.normal(self.RNG_MEAN, self.RNG_STD_DEV, shape)
+        self.W_f = self.rng.normal(0.0, self.scale, shape)
         self.b_f = np.ones(hidden_size)   # initialised to 1 to encourage remembering early on
 
         # Input gate
-        self.W_i = self.scale * self.rng.normal(self.RNG_MEAN, self.RNG_STD_DEV, shape)
+        self.W_i = self.rng.normal(0.0, self.scale, shape)
         self.b_i = np.zeros(hidden_size)
 
         # Cell-state candidate
-        self.W_c = self.scale * self.rng.normal(self.RNG_MEAN, self.RNG_STD_DEV, shape)
+        self.W_c = self.rng.normal(0.0, self.scale, shape)
         self.b_c = np.zeros(hidden_size)
 
         # Output gate
-        self.W_o = self.scale * self.rng.normal(self.RNG_MEAN, self.RNG_STD_DEV, shape)
+        self.W_o = self.rng.normal(0.0, self.scale, shape)
         self.b_o = np.zeros(hidden_size)
 
         self.reset_gradients()
@@ -75,12 +71,6 @@ class LSTMCell:
 
         # Concats input and hidden state ulit
         X_t = np.concatenate((self.h_prev, self.x_t), axis=0)
-
-        # Gradient clipping (prevents grdient explosion)
-        do_t = np.clip(do_t, -clip_value, clip_value)
-        di_t = np.clip(di_t, -clip_value, clip_value)
-        dc_tilde = np.clip(dc_tilde, -clip_value, clip_value)
-        df_t = np.clip(df_t, -clip_value, clip_value)
         
         # Accumulate gradients 
         self.dW_f += np.outer(df_t, X_t)
@@ -116,7 +106,17 @@ class LSTMCell:
         self.dW_o = np.zeros_like(self.W_o)
         self.db_o = np.zeros_like(self.b_o)
     
-    def update_weights(self, learning_rate):
+    def update_weights(self, learning_rate, clip_size = 5.0):
+        # Gradient clipping (prevents grdient explosion)
+        all_grads = [self.dW_f, self.dW_i, self.dW_c, self.dW_o,
+                     self.db_f, self.db_i, self.db_c, self.db_o]
+        total_norm = np.sqrt(sum(np.sum(g**2) for g in all_grads))
+        if total_norm > clip_size:
+            scale = clip_size / (total_norm + 1e-8)
+            for g in all_grads:
+                g[:] *= scale
+
+
         # Update forget gate
         self.W_f -= learning_rate * self.dW_f
         self.b_f -= learning_rate * self.db_f
