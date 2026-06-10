@@ -105,7 +105,7 @@ def run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, 
     test_trends_tail = trends_test.iloc[-CONFIG.lookback:]
     test_sentiment_tail = sentiment_test.iloc[-CONFIG.lookback:]
     
-    residual_learning_low.run_rolling(
+    low_errors_df = residual_learning_low.run_rolling(
         endog=rice_low_df,
         exog=extended_enso_df,
         trends_test=google_trends_df,
@@ -120,7 +120,7 @@ def run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, 
         is_test_set=False
     )
 
-    residual_learning_high.run_rolling(
+    high_errors_df = residual_learning_high.run_rolling(
         endog=rice_high_df,
         exog=extended_enso_df,
         trends_test=google_trends_df,
@@ -135,6 +135,7 @@ def run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, 
         is_test_set=False
     )
     
+    return low_errors_df, high_errors_df
 
 # == Residual Learning for Test Set ==
 def run_residual_learning_test_set(target = "high"):
@@ -163,6 +164,7 @@ def run_residual_learning_test_set(target = "high"):
     val_sentiment_tail = sentiment_val.iloc[-CONFIG.lookback:]
 
     residual_learning = ResidualLearning(sarimax, lstm, target=target)
+    
     residual_learning.run_rolling(
         endog=endog_test,
         exog=exog_test,
@@ -198,7 +200,8 @@ def sanity_check_overfit():
     print(f"\nTarget: {y_sample}  |  Prediction: {pred}")
 
 # == Entry point ==
-if __name__ == "__main__":
+# if __name__ == "__main__":
     # train_lstm_residuals(target="high")
-    run_residual_learning_test_set(target="high")
-    run_residual_learning_test_set(target="low")
+    # train_lstm_residuals(target="low")
+    # run_residual_learning_test_set(target="high")
+    # run_residual_learning_test_set(target="low")

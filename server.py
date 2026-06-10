@@ -44,15 +44,17 @@ async def process_csv(sarimax_input_file: UploadFile = File(...), lstm_input_fil
     rice_low_df, rice_high_df, enso_df = extract_sarimax_inputs(sarimax_input_df)
     google_trends_df, sentiment_df = extract_lstm_inputs(lstm_input_df)
 
-    run_residual_learning_test_set("high")
-    run_residual_learning_test_set("low")
+    # run_residual_learning_test_set("high")
+    # run_residual_learning_test_set("low")
     
-    run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, sentiment_df)
+    df_low_errors, df_high_errors = run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, sentiment_df)
     
     df_high_forecast = pd.read_csv("output/final_demo_prediction_high.csv")
     df_low_forecast = pd.read_csv("output/final_demo_prediction_low.csv")
 
     return {
         "high_forecast": df_high_forecast.to_dict(orient="records"),
-        "low_forecast": df_low_forecast.to_dict(orient="records")
+        "high_forecast_errors": df_high_errors.to_dict(orient="records"),
+        "low_forecast": df_low_forecast.to_dict(orient="records"),
+        "low_forecast_errors": df_low_errors.to_dict(orient="records")
     }
