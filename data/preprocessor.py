@@ -22,7 +22,7 @@ class Preprocessor:
 
 
     # == Build (X_train, y_train, X_val, y_val) in one call ==
-    def prepare_multivariate(self, train_features, val_features, target, multistep = True,):
+    def prepare_training(self, train_features, val_features, target):
         # Fits the min-max scaler to the features
         scaled_train = self.scaler.fit_transform(train_features)
 
@@ -30,14 +30,8 @@ class Preprocessor:
         scaled_val = self.scaler.transform(val_features)
         self.scaler.save_scaler(target)
 
-        # Produces forecast for output size > 1 (nakabase sa horizon)
-        if multistep:
-            X_train, y_train = create_sequences_multistep(scaled_train, self.config.lookback, self.config.horizon)
-            X_val, y_val = create_sequences_multistep(scaled_val, self.config.lookback, self.config.horizon)
+        # Produces forecast for output size = 1 (tomorrow ang prediction)    
+        X_train, y_train = create_sequences(scaled_train, self.config.lookback)
+        X_val, y_val = create_sequences(scaled_val, self.config.lookback)
 
-        # Produces forecast for output size = 1 (tomorrow lang ang prediction)    
-        else:
-            X_train, y_train = create_sequences(scaled_train, self.config.lookback)
-            X_val, y_val = create_sequences(scaled_val, self.config.lookback)
-            
         return X_train, y_train, X_val, y_val

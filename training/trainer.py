@@ -114,10 +114,10 @@ class Trainer:
     def plot_predictions(
         self,
         target,
+        title,
         scaler,
         X_train, y_train,
         X_val=None, y_val=None,
-        title: str = "LSTM Fitted vs Actual",
     ):
         def run_predictions(X, y):
             preds, actuals = [], []
@@ -128,10 +128,9 @@ class Trainer:
                     h, c = self.network.lstm_cell.forward_pass(X_seq[t], h, c)
                 y_pred = self.network.output_layer.forward(h)
  
-                pred_val = y_pred[0] 
-                true_val = y_true[0] 
+                pred_val = y_pred
+                true_val = y_true
 
- 
                 preds.append(pred_val)
                 actuals.append(true_val)
  

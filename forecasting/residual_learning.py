@@ -6,13 +6,14 @@ from utils import mae, mape, rmse
 from utils.utils import print_tabulation
 
 class ResidualLearning:
-    def __init__(self, sarimax: SARIMAX, lstm: LSTM, target):
+    def __init__(self, sarimax: SARIMAX, lstm: LSTM, target, steps):
         self.sarimax = sarimax
         self.lstm = lstm
 
         self.target = target
         sarimax.target = target
         lstm.target = target
+        self.steps = steps
 
     def run_rolling(self, endog, exog, 
             trends_test, 
@@ -22,7 +23,7 @@ class ResidualLearning:
             sentiment_tail,
             start_date, 
             end_date,
-            steps=14, target_csv=None, is_test_set=True):
+            target_csv=None, is_test_set=True):
         
         
         all_fusion = []
@@ -40,12 +41,10 @@ class ResidualLearning:
         lstm_sentiment_window = sentiment_tail.copy()
         
         while current_date <= end_date:
-            window_end = min(current_date + pd.Timedelta(days=steps - 1), end_date)
+            window_end = min(current_date + pd.Timedelta(days=self.steps - 1), end_date)
 
             # Get exogenous window (ENSO)
-            exog_window = self._get_exog_window(
-                exog,current_date, steps
-            )
+            exog_window = self._get_exog_window(exog,current_date)
 
             # Forecast one step
             sarimax_forecast, lstm_prediction, fusion_forecast = self._forecast_one_step(
@@ -95,12 +94,12 @@ class ResidualLearning:
             "Residuals": all_residuals
         })
 
-        exog_window = self._get_exog_window(exog, current_date, steps)
+        exog_window = self._get_exog_window(exog, current_date)
 
         # Final forecast step
-        lstm_residual_window = all_residuals[-steps:]
-        lstm_trends_window = trends_test.iloc[-steps:]
-        lstm_sentiment_window = sentiment_test.iloc[-steps:]
+        lstm_residual_window = all_residuals[-self.steps:]
+        lstm_trends_window = trends_test.iloc[-self.steps:]
+        lstm_sentiment_window = sentiment_test.iloc[-self.steps:]
         sarimax_forecast, _,  fusion_forecast = self._forecast_one_step(
             exog_window, lstm_residual_window, lstm_trends_window, 
             lstm_sentiment_window, current_date
@@ -125,11 +124,11 @@ class ResidualLearning:
         self, exog_window, lstm_residual_window, lstm_trends_window,
         lstm_sentiment_window, current_date
     ):
-        sarimax_forecast = self.sarimax.walk_forward(exog_window, steps=14)
+        sarimax_forecast = self.sarimax.walk_forward(exog_window, self.steps)
 
         # Feed residual, trends, and sentiment window to LSTM
         lstm_prediction = self.lstm.predict(
-            lstm_residual_window, lstm_trends_window, lstm_sentiment_window, current_date
+            lstm_residual_window, lstm_trends_window, lstm_sentiment_window, current_date, self.steps
         )
 
         # Fusion of SARIMAX and LSTM residuals (Residual Learning)
@@ -137,9 +136,9 @@ class ResidualLearning:
 
         return sarimax_forecast, lstm_prediction, fusion_forecast
 
-    def _get_exog_window(self, exog, current_date, steps):
+    def _get_exog_window(self, exog, current_date):
         # Create exog window for sarimax
-        exog_start = current_date - pd.Timedelta(days=steps)
+        exog_start = current_date - pd.Timedelta(days=self.steps)
         exog_window = exog.loc[exog_start: current_date - pd.Timedelta(days=1)]
 
         return exog_window

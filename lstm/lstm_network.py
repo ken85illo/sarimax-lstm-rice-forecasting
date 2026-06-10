@@ -17,14 +17,26 @@ class LSTMNetwork:
             rng=self.lstm_cell.rng,
         )
 
-    def predict(self, X_seq: np.ndarray) -> np.ndarray:
-        h = np.zeros(self.hidden_size)
-        c = np.zeros(self.hidden_size)
+    def predict(self, X_seq: np.ndarray, steps = 14) -> np.ndarray:
+        sequence = list(X_seq.copy())  
+        predictions = []
 
-        for t in range(len(X_seq)):
-            h, c = self.lstm_cell.forward_pass(X_seq[t], h, c)
+        for _ in range(steps):
+            h = np.zeros(self.hidden_size)
+            c = np.zeros(self.hidden_size)
+            for t in range(len(sequence)):
+                h, c = self.lstm_cell.forward_pass(sequence[t], h, c)
 
-        return self.output_layer.forward(h)
+            pred = self.output_layer.forward(h)  
+            predictions.append(pred)
+
+            last_features = sequence[-1].copy()
+            last_features[-1] = pred[0]
+            
+            sequence.append(last_features)
+            sequence.pop(0)  
+
+        return np.array(predictions)
 
     # == Saving model to avoid retraining everytime ==
     def save_model(self, target: str):

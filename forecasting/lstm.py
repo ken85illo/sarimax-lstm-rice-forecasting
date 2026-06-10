@@ -24,12 +24,12 @@ class LSTM:
         return LSTM(network, scaler, config)
 
     # == Prediction ==
-    def predict(self, residual_window, trends_window, sentiment_window, current_date):
+    def predict(self, residual_window, trends_window, sentiment_window, current_date, steps):
         pos_window, neu_window, neg_window = split_sentiment_classes(sentiment_window)
         feature_pairs = list(zip(residual_window, trends_window, pos_window, neu_window, neg_window))
         scaled_input = self.scaler.transform(feature_pairs)
 
-        raw_pred = self.network.predict(scaled_input).reshape(-1, 1)
+        raw_pred = self.network.predict(scaled_input, steps).reshape(-1, 1)
         predicted = self.scaler.inverse_transform_feature(raw_pred, 0)
 
         self._print_window(scaled_input, predicted, current_date)

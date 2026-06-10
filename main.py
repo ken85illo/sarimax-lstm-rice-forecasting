@@ -17,7 +17,7 @@ CONFIG = ModelConfig(
     epochs=300,
     patience=20,
     input_size=5,
-    output_size=14,
+    output_size=1,
 )
 
 PATHS = PathConfig()
@@ -48,11 +48,10 @@ def train_lstm_residuals(target = "high"):
 
     # Preprocess
     prep = Preprocessor(CONFIG)
-    X_train, y_train, X_val, y_val = prep.prepare_multivariate(
+    X_train, y_train, X_val, y_val = prep.prepare_training(
         train_features=list(zip(train_resid, trends_train, pos_train, neu_train, neg_train)),
         val_features=list(zip(val_resid, trends_val, pos_val, neu_val, neg_val)),
         target=target,
-        multistep=True,
     )
 
     # Build, train, and save
@@ -66,10 +65,10 @@ def train_lstm_residuals(target = "high"):
     trainer.train(X_train, y_train, X_val, y_val)
     trainer.plot_predictions(
         target,
+        f"Well-Milled {target.capitalize()} Residuals",
         prep.scaler,   
         X_train, y_train,
         X_val, y_val,
-        title="Well-Milled High Residuals"
     )
     network.save_model(target)
 
@@ -90,8 +89,8 @@ def run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, 
     lstm_low = LSTM.load("low-test", CONFIG, scaler_target="low")
 
     # SARIMAX models for Well-Milled Low and High
-    residual_learning_low = ResidualLearning(sarimax_low, lstm_low, "low")
-    residual_learning_high = ResidualLearning(sarimax_high, lstm_high, "high")
+    residual_learning_low = ResidualLearning(sarimax_low, lstm_low, "low", CONFIG.horizon)
+    residual_learning_high = ResidualLearning(sarimax_high, lstm_high, "high", CONFIG.horizon)
     
     enso_original = loader.load_enso()
     
@@ -169,7 +168,7 @@ def run_residual_learning_test_set(target = "high"):
     val_trends_tail = trends_val.iloc[-CONFIG.lookback:]
     val_sentiment_tail = sentiment_val.iloc[-CONFIG.lookback:]
 
-    residual_learning = ResidualLearning(sarimax, lstm, target=target)
+    residual_learning = ResidualLearning(sarimax, lstm, target=target, steps=CONFIG.horizon)
     residual_learning.run_rolling(
         endog=endog_test,
         exog=exog_test,
