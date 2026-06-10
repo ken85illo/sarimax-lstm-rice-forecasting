@@ -1,5 +1,6 @@
 import numpy as np
 from lstm import LSTMNetwork
+import matplotlib.pyplot as plt
 from .checkpoint import ModelCheckpoint
 
 class Trainer:
@@ -107,6 +108,79 @@ class Trainer:
             y_pred = self.network.output_layer.forward(h)
             total += self.network.output_layer.loss(y_pred, y_true)
         return total / len(X_val)
+
+
+    # == Plot fitted train predictions and val predictions vs actuals ==
+    def plot_predictions(
+        self,
+        target,
+        scaler,
+        X_train, y_train,
+        X_val=None, y_val=None,
+        title: str = "LSTM Fitted vs Actual",
+    ):
+        def run_predictions(X, y):
+            preds, actuals = [], []
+            for X_seq, y_true in zip(X, y):
+                h = np.zeros(self.network.hidden_size)
+                c = np.zeros(self.network.hidden_size)
+                for t in range(len(X_seq)):
+                    h, c = self.network.lstm_cell.forward_pass(X_seq[t], h, c)
+                y_pred = self.network.output_layer.forward(h)
+ 
+                pred_val = y_pred[0] 
+                true_val = y_true[0] 
+
+ 
+                preds.append(pred_val)
+                actuals.append(true_val)
+ 
+            preds = np.array(preds).reshape(-1, 1)
+            actuals = np.array(actuals).reshape(-1, 1)
+ 
+            preds = scaler.inverse_transform_feature(preds, 0).flatten()
+            actuals = scaler.inverse_transform_feature(actuals, 0).flatten()
+ 
+            return preds, actuals
+ 
+        train_preds, train_actuals = run_predictions(X_train, y_train)
+ 
+        fig, axes = plt.subplots(
+            1 if X_val is None else 2,
+            1,
+            figsize=(14, 5 if X_val is None else 10),
+            sharex=False,
+        )
+ 
+        # Make axes always iterable
+        if X_val is None:
+            axes = [axes]
+ 
+        # Train plot 
+        ax = axes[0]
+        ax.plot(train_actuals, label="Actual", color="#2563eb", linewidth=1.5)
+        ax.plot(train_preds,   label="Fitted (Train)", color="#ff0000", linewidth=1.5)
+        ax.set_title(f"{title} (Training Set)", fontsize=12, fontweight="bold")
+        ax.set_xlabel("Time Step")
+        ax.set_ylabel("Value")
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+ 
+        # Validation plot 
+        if X_val is not None:
+            val_preds, val_actuals = run_predictions(X_val, y_val)
+            ax = axes[1]
+            ax.plot(val_actuals, label="Actual",             color="#2563eb", linewidth=1.5)
+            ax.plot(val_preds,   label="Predicted (Val)",    color="#ff0000", linewidth=1.5)
+            ax.set_title(f"{title} (Validation Set)", fontsize=12, fontweight="bold")
+            ax.set_xlabel("Time Step")
+            ax.set_ylabel("Value")
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+ 
+        plt.tight_layout()
+        plt.savefig(f"output/{target}_training_val_plot.png")
+
 
     # == Log function for train and validation loss per epoch ==
     @staticmethod

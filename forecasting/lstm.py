@@ -45,14 +45,13 @@ class LSTM:
         input_dates = [window_start + pd.Timedelta(days=t) for t in range(len(inverse_input)) ]
         output_dates = [current_date + pd.Timedelta(days=t) for t in range(len(predicted)) ]
 
-
         print_df = pd.DataFrame({
             "Input": input_dates,
             "Residual": inverse_input[:, 0],
             "Google Trends": inverse_input[:, 1],
             "Positive": inverse_input[:, 2],
             "Neutral": inverse_input[:, 3],
-            "Negative": inverse_input[:, 3],
+            "Negative": inverse_input[:, 4],
             "Output": output_dates,
             "Prediction": predicted.flatten(),
         })

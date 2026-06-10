@@ -38,8 +38,10 @@ class DataLoader:
     # == Loads SARIMAX Residuals CSV ==
     def load_train_residuals(self, label, col):
         path = self.paths.train_residuals(label)
-        print(path)
         df = pd.read_csv(path)
+        if "Date" in df.columns:
+            df = df.set_index("Date")
+            df.index = pd.to_datetime(df.index)
 
         return df[col]
 
