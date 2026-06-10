@@ -12,25 +12,31 @@ class OutputLayer:
         self.W_y = rng.normal(0.0, scale, (output_size, hidden_size))
         self.b_y = np.zeros(output_size)
 
+        self.reset_gradients()
+
     # == Similar to forward pass, updates yung weights and bias ==
     def forward(self, h: np.ndarray) -> np.ndarray:
         return self.W_y @ h + self.b_y
 
-    # == MSE Loss functions ==
-    def loss(self, y_pred: np.ndarray, y_true: np.ndarray) -> float:
-        return mse_loss(y_pred, y_true)
-
-    def loss_derivative(self, y_pred: np.ndarray, y_true: np.ndarray) -> np.ndarray:
-        return mse_loss_derivative(y_pred, y_true)
-
     # == Backward pjjass that updates yung gradients ==
-    def backward(self, dy: np.ndarray, h: np.ndarray, learning_rate: float) -> np.ndarray:
+    def backward(self, dy: np.ndarray, h: np.ndarray) -> np.ndarray:
         dh = self.W_y.T @ dy
 
-        self.W_y -= learning_rate * np.outer(dy, h)
-        self.b_y -= learning_rate * dy
+        # Accumulate gradients
+        self.dW_y += np.outer(dy, h)
+        self.db_y += dy
 
         return dh
+
+    def update_weights(self, learning_rate):
+        self.W_y -= learning_rate * self.dW_y
+        self.b_y -= learning_rate * self.db_y
+
+        self.reset_gradients()
+
+    def reset_gradients(self):
+        self.dW_y = np.zeros_like(self.W_y)
+        self.db_y = np.zeros_like(self.b_y)
 
     # == Get and set weights para sa update and restore ng  ModelCheckpoint ===
     def get_weights(self) -> dict:

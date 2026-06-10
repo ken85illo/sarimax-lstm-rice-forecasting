@@ -1,14 +1,17 @@
 import numpy as np
 from lstm import LSTMNetwork
 import matplotlib.pyplot as plt
+
+from utils import mse_loss, mse_loss_derivative
 from .checkpoint import ModelCheckpoint
 
 class Trainer:
-    def __init__(self, network: LSTMNetwork, learning_rate: float = 0.001, epochs: int = 300, patience: int = 20):
+    def __init__(self, network: LSTMNetwork, learning_rate: float = 0.001, epochs: int = 300, patience: int = 20, dropout_rate = 0.1):
         self.network = network
         self.learning_rate = learning_rate
         self.epochs = epochs
         self.patience = patience
+        self.dropout_rate = dropout_rate
 
     # == Training Function for LSTM ==
     def train(self, X_train, y_train, X_val=None, y_val=None) -> float:
@@ -51,39 +54,78 @@ class Trainer:
         epoch_loss = 0.0
 
         for X_seq, y_true in zip(X_train, y_train):
-            h, c, states = self._forward_sequence(X_seq)
+            states, step_hs, y_pred = self._forward_sequence(X_seq, len(y_true))
 
-            # Output layer forward then compute yung loss (MSE)
-            y_pred = self.network.output_layer.forward(h)
-            loss = self.network.output_layer.loss(y_pred, y_true)
-            dy = self.network.output_layer.loss_derivative(y_pred, y_true)
+            # Output layer forward from y_pred then compute yung loss (MSE)
+            loss = mse_loss(y_pred, y_true)
+            dy = mse_loss_derivative(y_pred, y_true).flatten()
             epoch_loss += loss
 
-            # Output layer backward (returns dh hidden state na ginagamit sa backpropagation)
-            dh = self.network.output_layer.backward(dy, h, self.learning_rate)
-
             # Backpropagation ng LSTM cell
+            dh = np.zeros(self.network.hidden_size)
             dc = np.zeros(self.network.hidden_size)
-            for state in reversed(states):
+
+            encoder_states = states[:len(X_seq)]   
+            decoder_states = states[len(X_seq):]   
+
+            # Output layer backward (returns dh hidden state na ginagamit sa backpropagation)
+            for step in reversed(range(len(y_true))):
+                dy_step = np.atleast_1d(dy[step])
+                dh += self.network.output_layer.backward(dy_step, step_hs[step])
+                dh, dc = self.network.lstm_cell.backward_pass(
+                    dh, dc, self.learning_rate, state=decoder_states[step]
+                )
+
+            # Then backprop through encoder
+            for state in reversed(encoder_states):
                 dh, dc = self.network.lstm_cell.backward_pass(
                     dh, dc, self.learning_rate, state=state
                 )
-
-            self.network.lstm_cell.update_weights(self.learning_rate)
             
-
+            self._clip_gradient()
+            self.network.lstm_cell.update_weights(self.learning_rate)
+            self.network.output_layer.update_weights(self.learning_rate)
+        
         return epoch_loss / len(X_train)
 
-    def _forward_sequence(self, X_seq):
-        h = np.zeros(self.network.hidden_size)
-        c = np.zeros(self.network.hidden_size)
+
+    def _clip_gradient(self, clip_threshold = 1.0):
+        # Gradient clipping (prevents grdient explosion)
+        all_grads = [
+            self.network.lstm_cell.dW_f, self.network.lstm_cell.dW_i,
+            self.network.lstm_cell.dW_c, self.network.lstm_cell.dW_o,
+            self.network.lstm_cell.db_f, self.network.lstm_cell.db_i,
+            self.network.lstm_cell.db_c, self.network.lstm_cell.db_o,
+            self.network.output_layer.dW_y, self.network.output_layer.db_y,
+        ]
+        total_norm = np.sqrt(sum(np.sum(g**2) for g in all_grads))
+        if total_norm > clip_threshold:
+            scale = clip_threshold / (total_norm + 1e-8)
+            for g in all_grads:
+                g[:] *= scale
+
+
+    def _forward_sequence(self, X_seq, steps):
         cell = self.network.lstm_cell
         states = []
+        step_hs = []
 
-        for t in range(len(X_seq)):
-            x_t = X_seq[t]
-            h_prev, c_prev = h, c
+        h = np.zeros(self.network.hidden_size)
+        c = np.zeros(self.network.hidden_size)
+
+        # Forward pass through input sequence 
+        # (kunin yung last na hidden and cell state)
+        sequence = list(X_seq.copy())  
+        for t in range(len(sequence)):
+            x_t = sequence[t]
+
+            h_prev, c_prev = h.copy(), c.copy()
             h, c = cell.forward_pass(x_t, h, c)
+
+            # Dropout Rate
+            mask = (np.random.random(h.shape) > self.dropout_rate).astype(float)
+            h = h * mask / (1 - self.dropout_rate)
+
             states.append({
                 "x_t":     x_t,
                 "h_prev":  h_prev,
@@ -95,18 +137,45 @@ class Trainer:
                 "o_t":     cell.o_t,
             })
 
-        return h, c, states
+        # Get predictions (after to nung forward pass sa input sequence)
+        predictions = []
+        for _ in range(steps):
+            step_hs.append(h.copy())
+            pred = self.network.output_layer.forward(h)
+            predictions.append(pred)
+
+            x_t = sequence[-1].copy()
+            x_t[0] = pred[0]
+            
+            sequence.append(x_t)
+            sequence.pop(0)  
+
+            h_prev, c_prev = h.copy(), c.copy()
+            h, c = cell.forward_pass(x_t, h, c)
+
+            # Dropout Rate
+            mask = (np.random.random(h.shape) > self.dropout_rate).astype(float)
+            h = h * mask / (1 - self.dropout_rate)
+
+            states.append({
+                "x_t":     x_t,
+                "h_prev":  h_prev,
+                "c_prev":  c_prev,
+                "f_t":     cell.f_t,
+                "i_t":     cell.i_t,
+                "c_tilde": cell.c_tilde,
+                "c_t":     cell.c_t,
+                "o_t":     cell.o_t,
+            })
+
+        return states, step_hs, np.array(predictions)
 
     def _evaluate(self, X_val, y_val) -> float:
         # Compute average MSE on the validation set (no weight updates)
         total = 0.0
         for X_seq, y_true in zip(X_val, y_val):
-            h = np.zeros(self.network.hidden_size)
-            c = np.zeros(self.network.hidden_size)
-            for t in range(len(X_seq)):
-                h, c = self.network.lstm_cell.forward_pass(X_seq[t], h, c)
-            y_pred = self.network.output_layer.forward(h)
-            total += self.network.output_layer.loss(y_pred, y_true)
+            y_pred = self.network.predict(X_seq, len(y_true))
+            total += mse_loss(y_pred, y_true)
         return total / len(X_val)
 
 
@@ -121,18 +190,14 @@ class Trainer:
     ):
         def run_predictions(X, y):
             preds, actuals = [], []
-            for X_seq, y_true in zip(X, y):
-                h = np.zeros(self.network.hidden_size)
-                c = np.zeros(self.network.hidden_size)
-                for t in range(len(X_seq)):
-                    h, c = self.network.lstm_cell.forward_pass(X_seq[t], h, c)
-                y_pred = self.network.output_layer.forward(h)
- 
-                pred_val = y_pred
-                true_val = y_true
 
-                preds.append(pred_val)
-                actuals.append(true_val)
+            for i, (X_seq, y_true) in enumerate(zip(X, y)):
+                if i % len(y_true) != 0:   # Every 14 days
+                    continue
+
+                y_pred = self.network.predict(X_seq, len(y_true))
+                preds.extend(y_pred.flatten())
+                actuals.extend(y_true.flatten())
  
             preds = np.array(preds).reshape(-1, 1)
             actuals = np.array(actuals).reshape(-1, 1)

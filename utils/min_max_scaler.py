@@ -30,9 +30,9 @@ class MinMaxScaler:
     # Revert the transformed features
     def inverse_transform(self, scaled_data):
         scaled_data = np.array(scaled_data)
+        feat_min, feat_max = self.feature_range
         X_std = (scaled_data - feat_min) / (feat_max - feat_min)
 
-        feat_min, feat_max = self.feature_range
         return X_std * (self.max - self.min) + self.min
 
     # Revert a single transformed feature

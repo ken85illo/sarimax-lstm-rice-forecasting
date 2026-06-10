@@ -21,20 +21,24 @@ class LSTMNetwork:
         sequence = list(X_seq.copy())  
         predictions = []
 
-        for _ in range(steps):
-            h = np.zeros(self.hidden_size)
-            c = np.zeros(self.hidden_size)
-            for t in range(len(sequence)):
-                h, c = self.lstm_cell.forward_pass(sequence[t], h, c)
+        h = np.zeros(self.hidden_size)
+        c = np.zeros(self.hidden_size)
 
+        # Forward pass thorugh input feature
+        for t in range(len(sequence)):
+            h, c = self.lstm_cell.forward_pass(sequence[t], h, c)
+
+        for _ in range(steps):
             pred = self.output_layer.forward(h)  
             predictions.append(pred)
 
             last_features = sequence[-1].copy()
-            last_features[-1] = pred[0]
+            last_features[0] = pred[0]
             
             sequence.append(last_features)
             sequence.pop(0)  
+
+            h, c = self.lstm_cell.forward_pass(last_features, h, c)
 
         return np.array(predictions)
 

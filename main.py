@@ -12,12 +12,13 @@ from forecasting import SARIMAX, LSTM, ResidualLearning
 CONFIG = ModelConfig(
     lookback=14,
     horizon=14,
-    hidden_size=64,
-    learning_rate=0.001,
-    epochs=300,
+    hidden_size=16, # need to retrain if changed
+    learning_rate=0.0001,
+    epochs=1000,
     patience=20,
     input_size=5,
     output_size=1,
+    dropout_rate=0.1
 )
 
 PATHS = PathConfig()
@@ -61,7 +62,7 @@ def train_lstm_residuals(target = "high"):
         output_size=CONFIG.output_size,
     )
     
-    trainer = Trainer(network, CONFIG.learning_rate, CONFIG.epochs, CONFIG.patience)
+    trainer = Trainer(network, CONFIG.learning_rate, CONFIG.epochs, CONFIG.patience, CONFIG.dropout_rate)
     trainer.train(X_train, y_train, X_val, y_val)
     trainer.plot_predictions(
         target,
@@ -121,7 +122,6 @@ def run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, 
         sentiment_tail=test_sentiment_tail,
         start_date=earliest_date,
         end_date=latest_date,
-        steps=CONFIG.horizon,
         target_csv="low",
         is_test_set=False
     )
@@ -136,7 +136,6 @@ def run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, 
         sentiment_tail=test_sentiment_tail,
         start_date=earliest_date,
         end_date=latest_date,
-        steps=CONFIG.horizon,
         target_csv='high',
         is_test_set=False
     )
@@ -179,7 +178,6 @@ def run_residual_learning_test_set(target = "high"):
         sentiment_tail=val_sentiment_tail,
         start_date=test_start,
         end_date=test_end,
-        steps=CONFIG.horizon,
         target_csv=target,
         is_test_set=True
     )
@@ -207,4 +205,4 @@ def sanity_check_overfit():
 if __name__ == "__main__":
     train_lstm_residuals(target="low")
     # run_residual_learning_test_set(target="high")
-    # run_residual_learning_test_set(target="low")
+    run_residual_learning_test_set(target="low")
