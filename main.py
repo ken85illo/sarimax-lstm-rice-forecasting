@@ -64,6 +64,13 @@ def train_lstm_residuals(target = "high"):
     
     trainer = Trainer(network, CONFIG.learning_rate, CONFIG.epochs, CONFIG.patience)
     trainer.train(X_train, y_train, X_val, y_val)
+    trainer.plot_predictions(
+        target,
+        prep.scaler,   
+        X_train, y_train,
+        X_val, y_val,
+        title="Well-Milled High Residuals"
+    )
     network.save_model(target)
 
 def run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, sentiment_df):
@@ -199,6 +206,6 @@ def sanity_check_overfit():
 
 # == Entry point ==
 if __name__ == "__main__":
-    # train_lstm_residuals(target="high")
-    run_residual_learning_test_set(target="high")
-    run_residual_learning_test_set(target="low")
+    train_lstm_residuals(target="low")
+    # run_residual_learning_test_set(target="high")
+    # run_residual_learning_test_set(target="low")
