@@ -8,7 +8,7 @@ class LSTMCell:
         self.scale =  np.sqrt(2.0 / (hidden_size + input_size))
 
         # I think add tayo here ng set seed
-        self.rng = np.random.default_rng()
+        self.rng = np.random.default_rng(seed = 42)
 
         shape = (hidden_size, hidden_size + input_size)
 
@@ -63,8 +63,9 @@ class LSTMCell:
             self.o_t = state["o_t"]
 
         # Standard Gradient Descent
-        do_t = dh_next * tanh_function(self.c_t) * sigmoid_derivative(self.o_t)
-        dc_t = dh_next * self.o_t * tanh_derivative(tanh_function(self.c_t)) + dc_next
+        tanh_c_t = tanh_function(self.c_t)
+        do_t = dh_next * tanh_c_t * sigmoid_derivative(self.o_t)
+        dc_t = dh_next * self.o_t * tanh_derivative(tanh_c_t) + dc_next
         di_t = dc_t * self.c_tilde * sigmoid_derivative(self.i_t)
         dc_tilde = dc_t * self.i_t * tanh_derivative(self.c_tilde)
         df_t = dc_t * self.c_prev * sigmoid_derivative(self.f_t)
@@ -106,17 +107,7 @@ class LSTMCell:
         self.dW_o = np.zeros_like(self.W_o)
         self.db_o = np.zeros_like(self.b_o)
     
-    def update_weights(self, learning_rate, clip_size = 5.0):
-        # Gradient clipping (prevents grdient explosion)
-        all_grads = [self.dW_f, self.dW_i, self.dW_c, self.dW_o,
-                     self.db_f, self.db_i, self.db_c, self.db_o]
-        total_norm = np.sqrt(sum(np.sum(g**2) for g in all_grads))
-        if total_norm > clip_size:
-            scale = clip_size / (total_norm + 1e-8)
-            for g in all_grads:
-                g[:] *= scale
-
-
+    def update_weights(self, learning_rate):
         # Update forget gate
         self.W_f -= learning_rate * self.dW_f
         self.b_f -= learning_rate * self.db_f

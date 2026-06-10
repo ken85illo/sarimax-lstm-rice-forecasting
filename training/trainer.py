@@ -1,6 +1,8 @@
 import numpy as np
 from lstm import LSTMNetwork
 import matplotlib.pyplot as plt
+
+from utils import mse_loss, mse_loss_derivative
 from .checkpoint import ModelCheckpoint
 
 class Trainer:
@@ -55,12 +57,12 @@ class Trainer:
 
             # Output layer forward then compute yung loss (MSE)
             y_pred = self.network.output_layer.forward(h)
-            loss = self.network.output_layer.loss(y_pred, y_true)
-            dy = self.network.output_layer.loss_derivative(y_pred, y_true)
+            loss = mse_loss(y_pred, y_true)
+            dy = mse_loss_derivative(y_pred, y_true)
             epoch_loss += loss
 
             # Output layer backward (returns dh hidden state na ginagamit sa backpropagation)
-            dh = self.network.output_layer.backward(dy, h, self.learning_rate)
+            dh = self.network.output_layer.backward(dy, h)
 
             # Backpropagation ng LSTM cell
             dc = np.zeros(self.network.hidden_size)
@@ -69,10 +71,26 @@ class Trainer:
                     dh, dc, self.learning_rate, state=state
                 )
 
+            self._clip_gradient()
             self.network.lstm_cell.update_weights(self.learning_rate)
-            
+            self.network.output_layer.update_weights(self.learning_rate)
 
         return epoch_loss / len(X_train)
+
+    def _clip_gradient(self, clip_threshold = 1.0):
+        # Gradient clipping (prevents grdient explosion)
+        all_grads = [
+            self.network.lstm_cell.dW_f, self.network.lstm_cell.dW_i,
+            self.network.lstm_cell.dW_c, self.network.lstm_cell.dW_o,
+            self.network.lstm_cell.db_f, self.network.lstm_cell.db_i,
+            self.network.lstm_cell.db_c, self.network.lstm_cell.db_o,
+            self.network.output_layer.dW_y, self.network.output_layer.db_y,
+        ]
+        total_norm = np.sqrt(sum(np.sum(g**2) for g in all_grads))
+        if total_norm > clip_threshold:
+            scale = clip_threshold / (total_norm + 1e-8)
+            for g in all_grads:
+                g[:] *= scale
 
     def _forward_sequence(self, X_seq):
         h = np.zeros(self.network.hidden_size)
@@ -106,7 +124,7 @@ class Trainer:
             for t in range(len(X_seq)):
                 h, c = self.network.lstm_cell.forward_pass(X_seq[t], h, c)
             y_pred = self.network.output_layer.forward(h)
-            total += self.network.output_layer.loss(y_pred, y_true)
+            total += mse_loss(y_pred, y_true)
         return total / len(X_val)
 
 
