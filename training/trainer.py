@@ -6,11 +6,12 @@ from utils import mse_loss, mse_loss_derivative
 from .checkpoint import ModelCheckpoint
 
 class Trainer:
-    def __init__(self, network: LSTMNetwork, learning_rate: float = 0.001, epochs: int = 300, patience: int = 20):
+    def __init__(self, network: LSTMNetwork, learning_rate: float = 0.001, epochs: int = 300, patience: int = 20, dropout_rate = 0.1):
         self.network = network
         self.learning_rate = learning_rate
         self.epochs = epochs
         self.patience = patience
+        self.dropout_rate = dropout_rate
 
     # == Training Function for LSTM ==
     def train(self, X_train, y_train, X_val=None, y_val=None) -> float:
@@ -100,8 +101,13 @@ class Trainer:
 
         for t in range(len(X_seq)):
             x_t = X_seq[t]
-            h_prev, c_prev = h, c
+            h_prev, c_prev = h.copy(), c.copy()
             h, c = cell.forward_pass(x_t, h, c)
+
+            # Dropout Rate
+            mask = (np.random.random(h.shape) > self.dropout_rate).astype(float)
+            h = h * mask / (1 - self.dropout_rate)
+
             states.append({
                 "x_t":     x_t,
                 "h_prev":  h_prev,

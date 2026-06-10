@@ -18,6 +18,7 @@ CONFIG = ModelConfig(
     patience=20,
     input_size=5,
     output_size=14,
+    dropout_rate=0.1
 )
 
 PATHS = PathConfig()
@@ -62,14 +63,14 @@ def train_lstm_residuals(target = "high"):
         output_size=CONFIG.output_size,
     )
     
-    trainer = Trainer(network, CONFIG.learning_rate, CONFIG.epochs, CONFIG.patience)
+    trainer = Trainer(network, CONFIG.learning_rate, CONFIG.epochs, CONFIG.patience, CONFIG.dropout_rate)
     trainer.train(X_train, y_train, X_val, y_val)
     trainer.plot_predictions(
         target,
         prep.scaler,   
         X_train, y_train,
         X_val, y_val,
-        title="Well-Milled High Residuals"
+        title=f"Well-Milled {target.capitalize()} Residuals"
     )
     network.save_model(target)
 
@@ -206,6 +207,6 @@ def sanity_check_overfit():
 
 # == Entry point ==
 if __name__ == "__main__":
-    train_lstm_residuals(target="low")
+    train_lstm_residuals(target="high")
     # run_residual_learning_test_set(target="high")
-    run_residual_learning_test_set(target="low")
+    # run_residual_learning_test_set(target="low")
