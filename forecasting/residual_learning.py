@@ -83,10 +83,10 @@ class ResidualLearning:
         comparison = pd.DataFrame({
             "Date": all_dates,
             "Actual": all_actuals,
-            "SARIMAX": truncate(all_sarimax, decimals = self.TRUNCATE_DECIMALS), # Ni-round ko para hindi decimal yung forecast
+            "SARIMAX": np.round(all_sarimax), # Ni-round ko para hindi decimal yung forecast
             "Residuals": all_residuals,
             "LSTM Correction": np.array(all_lstm).flatten(),
-            "Final Forecast": truncate(all_fusion, decimals = self.TRUNCATE_DECIMALS), # Same here naka round din
+            "Final Forecast": np.round(all_fusion), # Same here naka round din
         })
 
         df_errors = self._report(comparison)
@@ -110,8 +110,8 @@ class ResidualLearning:
         forecast_dates = [current_date.date() + pd.Timedelta(days=t) for t in range(len(fusion_forecast)) ]
         forecast = pd.DataFrame({
             "Date": forecast_dates,
-            "SARIMAX Forecast": truncate(sarimax_forecast.values, decimals=self.TRUNCATE_DECIMALS),
-            "Residual Forecast": truncate(fusion_forecast.flatten(), decimals=self.TRUNCATE_DECIMALS),
+            "SARIMAX Forecast": np.round(sarimax_forecast.values),
+            "Residual Forecast": np.round(fusion_forecast.flatten()),
         })
         print()
         target = f"({self.target})"
