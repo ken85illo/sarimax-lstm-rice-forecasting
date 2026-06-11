@@ -16,8 +16,8 @@ CONFIG = ModelConfig(
     lookback=14,
     horizon=14,
     hidden_size=16, # need to retrain if changed
-    learning_rate=0.0001,
-    epochs=1000,
+    learning_rate=0.001,
+    epochs=100,
     patience=20,
     input_size=5,
     output_size=1,
@@ -54,7 +54,6 @@ def train_lstm_residuals(target = "high"):
     print(lb_result)
     plot_acf(train_resid, lags=50)
     plt.savefig("acf_plot.png")
-    return
 
     # Preprocess
     prep = Preprocessor(CONFIG)
@@ -121,7 +120,7 @@ def run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, 
     test_trends_tail = trends_test.iloc[-CONFIG.lookback:]
     test_sentiment_tail = sentiment_test.iloc[-CONFIG.lookback:]
     
-    residual_learning_low.run_rolling(
+    low_errors_df = residual_learning_low.run_rolling(
         endog=rice_low_df,
         exog=extended_enso_df,
         trends_test=google_trends_df,
@@ -135,7 +134,7 @@ def run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, 
         is_test_set=False
     )
 
-    residual_learning_high.run_rolling(
+    high_errors_df = residual_learning_high.run_rolling(
         endog=rice_high_df,
         exog=extended_enso_df,
         trends_test=google_trends_df,
@@ -149,6 +148,7 @@ def run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, 
         is_test_set=False
     )
     
+    return low_errors_df, high_errors_df
 
 # == Residual Learning for Test Set ==
 def run_residual_learning_test_set(target = "high"):
@@ -213,5 +213,5 @@ def sanity_check_overfit():
 # == Entry point ==
 if __name__ == "__main__":
     # train_lstm_residuals(target="high")
-    # run_residual_learning_test_set(target="high")
+    run_residual_learning_test_set(target="low")
     run_residual_learning_test_set(target="high")

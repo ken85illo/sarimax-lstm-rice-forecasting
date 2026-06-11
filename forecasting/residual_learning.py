@@ -83,12 +83,12 @@ class ResidualLearning:
         comparison = pd.DataFrame({
             "Date": all_dates,
             "Actual": all_actuals,
-            "SARIMAX": truncate(all_sarimax, decimals = self.TRUNCATE_DECIMALS), # Ni-round ko para hindi decimal yung forecast
+            "SARIMAX": truncate(all_sarimax, decimals = self.TRUNCATE_DECIMALS),
             "LSTM Correction": truncate(all_lstm, decimals = self.TRUNCATE_DECIMALS).flatten(),
-            "Final Forecast": truncate(all_fusion, decimals = self.TRUNCATE_DECIMALS), # Same here naka round din
+            "Final Forecast": truncate(all_fusion, decimals = self.TRUNCATE_DECIMALS),
         })
 
-        self._report(comparison)
+        df_errors = self._report(comparison)
 
         residuals = pd.DataFrame({
             "Date": all_dates,
@@ -118,7 +118,7 @@ class ResidualLearning:
                 
         self._save_csv(target_csv, comparison, residuals, forecast, is_test_set)
 
-        return comparison
+        return df_errors
 
         
     def _forecast_one_step(
@@ -148,14 +148,31 @@ class ResidualLearning:
     def _save_csv(self,target_csv, comparison, residuals, forecast, is_test_set = True):
         prefix = "test" if is_test_set else "final"
         if target_csv:
-            demo_csv = f"output/{prefix}_demo_prediction_{target_csv}.csv"
             resid_csv = f"output/{prefix}_demo_residuals_{target_csv}.csv"
             forecast_csv = f"output/{prefix}_forecast_{target_csv}.csv"
 
-            comparison.to_csv(demo_csv)
+            if is_test_set:
+                demo_csv = f"output/{prefix}_demo_prediction_{target_csv}.json"
+    
+                # Create a temporary copy so we don't mutate your original DataFrame
+                temp_comparison = comparison.copy()
+                
+                if temp_comparison.index.name == 'Date':
+                    temp_comparison = temp_comparison.reset_index().rename(columns={'index': 'Date'})
+                    
+                if 'Date' in temp_comparison.columns:
+                    temp_comparison['Date'] = pd.to_datetime(temp_comparison['Date']).dt.strftime('%Y-%m-%d')
+                
+                # Export the temporary dataframe to JSON
+                temp_comparison.to_json(demo_csv, orient='records', indent=4)
+
+            else:
+                demo_csv = f"output/{prefix}_demo_prediction_{target_csv}.csv"
+                comparison.to_csv(demo_csv)
+
             residuals.to_csv(resid_csv)
             forecast.to_csv(forecast_csv)
-
+                
             print(f"\nDemo Comparison saved to {demo_csv}")
             print(f"Residuals saved to {resid_csv}")
             print(f"Forecast saved to {forecast_csv}")
@@ -185,3 +202,5 @@ class ResidualLearning:
             print(f"RMSE:  {rmse_score:.4f}")
             print(f"MAE:   {mae_score:.4f}")
             print(f"MAPE:  {mape_score:.4f}%")
+        
+        return errors_df
