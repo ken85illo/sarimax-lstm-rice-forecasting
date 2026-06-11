@@ -58,6 +58,7 @@ class Trainer:
 
             # Output layer forward then compute yung loss (MSE)
             y_pred = self.network.output_layer.forward(h)
+            y_pred = y_pred.flatten()
             loss = mse_loss(y_pred, y_true)
             dy = mse_loss_derivative(y_pred, y_true)
             epoch_loss += loss
