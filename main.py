@@ -1,12 +1,15 @@
 import numpy as np
 import pandas as pd
 
+import matplotlib.pyplot as plt
+from statsmodels.graphics.tsaplots import plot_acf
 from utils import split_sentiment_classes
 from config import ModelConfig, PathConfig
 from data import DataLoader, Preprocessor
 from lstm import LSTMNetwork
 from training import Trainer
 from forecasting import SARIMAX, LSTM, ResidualLearning
+from statsmodels.stats.diagnostic import acorr_ljungbox
 
 # == Shared config ==
 CONFIG = ModelConfig(
@@ -18,7 +21,7 @@ CONFIG = ModelConfig(
     patience=20,
     input_size=5,
     output_size=1,
-    dropout_rate=0.1
+    dropout_rate=None
 )
 
 PATHS = PathConfig()
@@ -46,6 +49,12 @@ def train_lstm_residuals(target = "high"):
     sentiment_train, sentiment_val, _ = split_sentiments()
     pos_train, neu_train, neg_train = split_sentiment_classes(sentiment_train)
     pos_val, neu_val, neg_val = split_sentiment_classes(sentiment_val)
+
+    lb_result = acorr_ljungbox(train_resid, lags=[3, 7, 14], return_df=True)
+    print(lb_result)
+    plot_acf(train_resid, lags=50)
+    plt.savefig("acf_plot.png")
+    return
 
     # Preprocess
     prep = Preprocessor(CONFIG)
@@ -203,6 +212,6 @@ def sanity_check_overfit():
 
 # == Entry point ==
 if __name__ == "__main__":
-    train_lstm_residuals(target="low")
+    # train_lstm_residuals(target="high")
     # run_residual_learning_test_set(target="high")
-    run_residual_learning_test_set(target="low")
+    run_residual_learning_test_set(target="high")

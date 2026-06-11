@@ -13,7 +13,7 @@ class ModelConfig:
     patience: int = 20
     input_size: int = 2        # 2 for multivariate (price + trends), 1 for univariate
     output_size: int = 14      # matches horizon for multi-step forecasting
-    dropout_rate: float = 0.1
+    dropout_rate: float | None = 0.1
 
 
 @dataclass

@@ -1,5 +1,5 @@
 import numpy as np
-from utils import sigmoid_function, sigmoid_derivative, tanh_function, tanh_derivative
+from utils import sigmoid_function, sigmoid_derivative, tanh_function, tanh_derivative, RNG
 
 class LSTMCell:
     def __init__(self, input_size, hidden_size):
@@ -8,7 +8,7 @@ class LSTMCell:
         self.scale =  np.sqrt(2.0 / (hidden_size + input_size))
 
         # I think add tayo here ng set seed
-        self.rng = np.random.default_rng(seed = 42)
+        self.rng = RNG
 
         shape = (hidden_size, hidden_size + input_size)
 

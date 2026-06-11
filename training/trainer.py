@@ -2,7 +2,7 @@ import numpy as np
 from lstm import LSTMNetwork
 import matplotlib.pyplot as plt
 
-from utils import mse_loss, mse_loss_derivative
+from utils import huber_loss, huber_loss_derivative, RNG
 from .checkpoint import ModelCheckpoint
 
 class Trainer:
@@ -57,8 +57,8 @@ class Trainer:
             states, step_hs, y_pred = self._forward_sequence(X_seq, len(y_true))
 
             # Output layer forward from y_pred then compute yung loss (MSE)
-            loss = mse_loss(y_pred, y_true)
-            dy = mse_loss_derivative(y_pred, y_true).flatten()
+            loss = huber_loss(y_pred, y_true)
+            dy = huber_loss_derivative(y_pred, y_true).flatten()
             epoch_loss += loss
 
             # Backpropagation ng LSTM cell
@@ -89,7 +89,7 @@ class Trainer:
         return epoch_loss / len(X_train)
 
 
-    def _clip_gradient(self, clip_threshold = 1.0):
+    def _clip_gradient(self, clip_threshold = 5.0):
         # Gradient clipping (prevents grdient explosion)
         all_grads = [
             self.network.lstm_cell.dW_f, self.network.lstm_cell.dW_i,
@@ -123,8 +123,9 @@ class Trainer:
             h, c = cell.forward_pass(x_t, h, c)
 
             # Dropout Rate
-            mask = (np.random.random(h.shape) > self.dropout_rate).astype(float)
-            h = h * mask / (1 - self.dropout_rate)
+            if self.dropout_rate is not None:
+                mask = (RNG.random(h.shape) > self.dropout_rate).astype(float)
+                h = h * mask / (1 - self.dropout_rate)
 
             states.append({
                 "x_t":     x_t,
@@ -154,8 +155,9 @@ class Trainer:
             h, c = cell.forward_pass(x_t, h, c)
 
             # Dropout Rate
-            mask = (np.random.random(h.shape) > self.dropout_rate).astype(float)
-            h = h * mask / (1 - self.dropout_rate)
+            if self.dropout_rate is not None:
+                mask = (RNG.random(h.shape) > self.dropout_rate).astype(float)
+                h = h * mask / (1 - self.dropout_rate)
 
             states.append({
                 "x_t":     x_t,
@@ -175,7 +177,7 @@ class Trainer:
         total = 0.0
         for X_seq, y_true in zip(X_val, y_val):
             y_pred = self.network.predict(X_seq, len(y_true))
-            total += mse_loss(y_pred, y_true)
+            total += huber_loss(y_pred, y_true)
         return total / len(X_val)
 
 

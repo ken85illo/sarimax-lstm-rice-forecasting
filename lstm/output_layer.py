@@ -1,6 +1,4 @@
 import numpy as np
-from utils import mse_loss, mse_loss_derivative
-
 
 class OutputLayer:
     # Ito yung y = W_y @ h + b_y.

@@ -2,6 +2,9 @@ import numpy as np
 from tabulate import tabulate
 
 
+# == RNG with seed ==
+RNG = np.random.default_rng(seed = 42)
+
 # == Activation functions for LSTM ==
 def sigmoid_function(x):
     # Maps x to (0, 1)
@@ -22,11 +25,16 @@ def sigmoid_derivative(x):
 
 
 # == Loss functions ==
-def mse_loss(y_pred, y_true):
-    return np.mean((y_pred - y_true) ** 2)
+def huber_loss(y_pred, y_true, delta = 1.0):
+    error = y_pred - y_true
+    is_small = np.abs(error) <= delta
+    squared = 0.5 * error**2
+    linear  = delta * (np.abs(error) - 0.5 * delta)
+    return np.mean(np.where(is_small, squared, linear))
 
-def mse_loss_derivative(y_pred, y_true):
-    return 2.0 * (y_pred - y_true) / y_pred.shape[0]
+def huber_loss_derivative(y_pred, y_true, delta=1.0):
+    error = y_pred - y_true
+    return np.where(np.abs(error) <= delta, error, delta * np.sign(error)) / len(y_true)
 
 
 # == Evaluation metrics ==
@@ -67,6 +75,13 @@ def create_sequences_multistep(data, lookback, horizon):
         y.append(data[i:i + horizon, 0])
 
     return np.array(X), np.array(y)
+
+
+# == Chop off decimals without rounding
+def truncate(data, decimals):
+    data = np.array(data)
+    factor = 10 ** decimals
+    return np.trunc(data * factor) / factor
 
 
 def split_by_chunks(data, chunk_size):

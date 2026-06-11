@@ -1,11 +1,12 @@
 from .min_max_scaler import MinMaxScaler
 from .utils import (
+    RNG,
     sigmoid_function,
     sigmoid_derivative,
     tanh_function,
     tanh_derivative,
-    mse_loss,
-    mse_loss_derivative,
+    huber_loss,
+    huber_loss_derivative,
     mae,
     rmse,
     mape,
@@ -14,6 +15,7 @@ from .utils import (
     split_by_chunks,
     split_sentiment_classes,
     print_tabulation,
+    truncate
 )
 
 from .backend_utils import (
@@ -23,13 +25,14 @@ from .backend_utils import (
 )
  
 __all__ = [
-    "MinMaxScaler"
+    "RNG",
+    "MinMaxScaler",
     "sigmoid_function",
     "sigmoid_derivative",
     "tanh_function",
     "tanh_derivative",
-    "mse_loss",
-    "mse_loss_derivative",
+    "huber_loss",
+    "huber_loss_derivative",
     "mae",
     "rmse",
     "mape",
@@ -40,6 +43,7 @@ __all__ = [
     "print_tabulation",
     "extract_sarimax_inputs",
     "extract_lstm_inputs",
-    "validate_input_dataframe"
+    "validate_input_dataframe",
+    "truncate"
 ]
 
