@@ -25,16 +25,11 @@ def sigmoid_derivative(x):
 
 
 # == Loss functions ==
-def huber_loss(y_pred, y_true, delta = 1.0):
-    error = y_pred - y_true
-    is_small = np.abs(error) <= delta
-    squared = 0.5 * error**2
-    linear  = delta * (np.abs(error) - 0.5 * delta)
-    return np.mean(np.where(is_small, squared, linear))
+def mse_loss(y_pred, y_true):
+    return np.mean((y_pred - y_true) ** 2)
 
-def huber_loss_derivative(y_pred, y_true, delta=1.0):
-    error = y_pred - y_true
-    return np.where(np.abs(error) <= delta, error, delta * np.sign(error)) / len(y_true)
+def mse_loss_derivative(y_pred, y_true):
+    return 2.0 * (y_pred - y_true) / y_pred.shape[0]
 
 
 # == Evaluation metrics ==

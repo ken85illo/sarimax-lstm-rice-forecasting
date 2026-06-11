@@ -15,13 +15,13 @@ from statsmodels.stats.diagnostic import acorr_ljungbox
 CONFIG = ModelConfig(
     lookback=14,
     horizon=14,
-    hidden_size=16, # need to retrain if changed
+    hidden_size=128, # need to retrain if changed
     learning_rate=0.001,
-    epochs=100,
-    patience=20,
+    epochs=10,
+    patience=10,
     input_size=5,
     output_size=1,
-    dropout_rate=None
+    dropout_rate=0.1
 )
 
 PATHS = PathConfig()
@@ -212,6 +212,6 @@ def sanity_check_overfit():
 
 # == Entry point ==
 if __name__ == "__main__":
-    # train_lstm_residuals(target="high")
-    run_residual_learning_test_set(target="low")
+    train_lstm_residuals(target="high")
+    # run_residual_learning_test_set(target="high")
     run_residual_learning_test_set(target="high")

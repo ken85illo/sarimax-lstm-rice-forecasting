@@ -83,9 +83,10 @@ class ResidualLearning:
         comparison = pd.DataFrame({
             "Date": all_dates,
             "Actual": all_actuals,
-            "SARIMAX": truncate(all_sarimax, decimals = self.TRUNCATE_DECIMALS),
-            "LSTM Correction": truncate(all_lstm, decimals = self.TRUNCATE_DECIMALS).flatten(),
-            "Final Forecast": truncate(all_fusion, decimals = self.TRUNCATE_DECIMALS),
+            "SARIMAX": truncate(all_sarimax, decimals = self.TRUNCATE_DECIMALS), # Ni-round ko para hindi decimal yung forecast
+            "Residuals": all_residuals,
+            "LSTM Correction": np.array(all_lstm).flatten(),
+            "Final Forecast": truncate(all_fusion, decimals = self.TRUNCATE_DECIMALS), # Same here naka round din
         })
 
         df_errors = self._report(comparison)
