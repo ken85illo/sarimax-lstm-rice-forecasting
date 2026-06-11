@@ -7,7 +7,7 @@ class OutputLayer:
         self.hidden_size = hidden_size
         self.output_size = output_size
 
-        self.W_y = rng.normal(0.0, scale, (output_size, hidden_size))
+        self.W_y = rng.uniform(-scale, scale, (output_size, hidden_size))
         self.b_y = np.zeros(output_size)
 
         self.reset_gradients()

@@ -5,7 +5,7 @@ class LSTMCell:
     def __init__(self, input_size, hidden_size):
         self.input_size = input_size
         self.hidden_size = hidden_size
-        self.scale =  np.sqrt(2.0 / (hidden_size + input_size))
+        self.scale =  np.sqrt(6.0 / (hidden_size + input_size)) # Glorot
 
         # I think add tayo here ng set seed
         self.rng = RNG
@@ -13,19 +13,19 @@ class LSTMCell:
         shape = (hidden_size, hidden_size + input_size)
 
         # Forget gate
-        self.W_f = self.rng.normal(0.0, self.scale, shape)
+        self.W_f = self.rng.uniform(-self.scale, self.scale, shape)
         self.b_f = np.ones(hidden_size)   # initialised to 1 to encourage remembering early on
 
         # Input gate
-        self.W_i = self.rng.normal(0.0, self.scale, shape)
+        self.W_i = self.rng.uniform(-self.scale, self.scale, shape)
         self.b_i = np.zeros(hidden_size)
 
         # Cell-state candidate
-        self.W_c = self.rng.normal(0.0, self.scale, shape)
+        self.W_c = self.rng.uniform(-self.scale, self.scale, shape)
         self.b_c = np.zeros(hidden_size)
 
         # Output gate
-        self.W_o = self.rng.normal(0.0, self.scale, shape)
+        self.W_o = self.rng.uniform(-self.scale, self.scale, shape)
         self.b_o = np.zeros(hidden_size)
 
         self.reset_gradients()

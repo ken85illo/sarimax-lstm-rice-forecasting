@@ -2,7 +2,7 @@ import numpy as np
 from lstm import LSTMNetwork
 import matplotlib.pyplot as plt
 
-from utils import mse_loss, mse_loss_derivative, RNG
+from utils import huber_loss, huber_loss_derivative, RNG
 from .checkpoint import ModelCheckpoint
 
 class Trainer:
@@ -58,8 +58,8 @@ class Trainer:
             y_pred = y_pred.flatten()
 
             # Output layer forward from y_pred then compute yung loss (MSE)
-            loss = mse_loss(y_pred, y_true)
-            dy = mse_loss_derivative(y_pred, y_true).flatten()
+            loss = huber_loss(y_pred, y_true)
+            dy = huber_loss_derivative(y_pred, y_true).flatten()
             epoch_loss += loss
 
             # Backpropagation ng LSTM cell
@@ -178,7 +178,7 @@ class Trainer:
         total = 0.0
         for X_seq, y_true in zip(X_val, y_val):
             y_pred = self.network.predict(X_seq, len(y_true))
-            total += mse_loss(y_pred, y_true)
+            total += huber_loss(y_pred, y_true)
         return total / len(X_val)
 
 
