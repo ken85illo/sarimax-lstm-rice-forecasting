@@ -12,17 +12,31 @@ from forecasting import SARIMAX, LSTM, ResidualLearning
 from statsmodels.stats.diagnostic import acorr_ljungbox
 
 # == Shared config ==
-CONFIG = ModelConfig(
-    lookback=14,
-    horizon=14,
-    hidden_size=64, # need to retrain if changed
-    learning_rate=0.001,
-    epochs=50,
-    patience=10,
-    input_size=5,
-    output_size=1,
-    dropout_rate=0.1
-)
+CONFIG = {
+    "high" : ModelConfig(
+        lookback=14,
+        horizon=14,
+        hidden_size=16, # need to retrain if changed
+        learning_rate=0.001,
+        epochs=25,
+        patience=10,
+        input_size=5,
+        output_size=1,
+        dropout_rate=0.1
+    ),
+    "low": ModelConfig(
+        lookback=14,
+        horizon=14,
+        hidden_size=64, # need to retrain if changed
+        learning_rate=0.001,
+        epochs=50,
+        patience=10,
+        input_size=5,
+        output_size=1,
+        dropout_rate=0.1
+
+    )
+}
 
 PATHS = PathConfig()
 loader = DataLoader(PATHS)
@@ -56,7 +70,7 @@ def train_lstm_residuals(target = "high"):
     plt.savefig("acf_plot.png")
 
     # Preprocess
-    prep = Preprocessor(CONFIG)
+    prep = Preprocessor(CONFIG[target])
     X_train, y_train, X_val, y_val = prep.prepare_training(
         train_features=list(zip(train_resid, trends_train, pos_train, neu_train, neg_train)),
         val_features=list(zip(val_resid, trends_val, pos_val, neu_val, neg_val)),
@@ -68,12 +82,12 @@ def train_lstm_residuals(target = "high"):
 
     # Build, train, and save
     network = LSTMNetwork(
-        input_size=CONFIG.input_size,
-        hidden_size=CONFIG.hidden_size,
-        output_size=CONFIG.output_size,
+        input_size=CONFIG[target].input_size,
+        hidden_size=CONFIG[target].hidden_size,
+        output_size=CONFIG[target].output_size,
     )
     
-    trainer = Trainer(network, CONFIG.learning_rate, CONFIG.epochs, CONFIG.patience, CONFIG.dropout_rate)
+    trainer = Trainer(network, CONFIG[target].learning_rate, CONFIG[target].epochs, CONFIG[target].patience, CONFIG[target].dropout_rate)
     trainer.train(X_train, y_train, X_val, y_val)
     trainer.plot_predictions(
         target,
@@ -97,16 +111,16 @@ def run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, 
     sarimax_low = SARIMAX.load("low-test", PATHS)
 
     # LSTM models for Well-Milled Low and High
-    lstm_high = LSTM.load("high-test", CONFIG, scaler_target="high") 
-    lstm_low = LSTM.load("low-test", CONFIG, scaler_target="low")
+    lstm_high = LSTM.load("high-test", CONFIG["high"], scaler_target="high") 
+    lstm_low = LSTM.load("low-test", CONFIG["low"], scaler_target="low")
 
     # SARIMAX models for Well-Milled Low and High
-    residual_learning_low = ResidualLearning(sarimax_low, lstm_low, "low", CONFIG.horizon)
-    residual_learning_high = ResidualLearning(sarimax_high, lstm_high, "high", CONFIG.horizon)
+    residual_learning_low = ResidualLearning(sarimax_low, lstm_low, "low", CONFIG["low"].horizon)
+    residual_learning_high = ResidualLearning(sarimax_high, lstm_high, "high", CONFIG["high"].horizon)
     
     enso_original = loader.load_enso()
     
-    last_enso = enso_df.index[0] - pd.Timedelta(days=CONFIG.lookback)
+    last_enso = enso_df.index[0] - pd.Timedelta(days=CONFIG["high"].lookback)
     last_enso_df = enso_original[enso_original.index >= last_enso]
     extended_enso_df = pd.concat([last_enso_df, enso_df])
     
@@ -114,14 +128,14 @@ def run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, 
     test_resid_high = loader.load_test_residuals("high")
     test_resid_low = loader.load_test_residuals("low")
 
-    test_resid_high_tail = test_resid_high.iloc[-CONFIG.lookback:]
-    test_resid_low_tail = test_resid_low.iloc[-CONFIG.lookback:]
+    test_resid_high_tail = test_resid_high.iloc[-CONFIG["high"].lookback:]
+    test_resid_low_tail = test_resid_low.iloc[-CONFIG["low"].lookback:]
 
     _, _ , trends_test = split_trends()
     _, _, sentiment_test = split_sentiments()
 
-    test_trends_tail = trends_test.iloc[-CONFIG.lookback:]
-    test_sentiment_tail = sentiment_test.iloc[-CONFIG.lookback:]
+    test_trends_tail = trends_test.iloc[-CONFIG["high"].lookback:]
+    test_sentiment_tail = sentiment_test.iloc[-CONFIG["high"].lookback:]
     
     residual_learning_low.run_rolling(
         endog=rice_low_df,
@@ -171,15 +185,15 @@ def run_residual_learning_test_set(target = "high"):
 
     # Load models
     sarimax = SARIMAX.load(target, PATHS)
-    lstm = LSTM.load(target, CONFIG)
+    lstm = LSTM.load(target, CONFIG[target])
 
     # Validation tails (last 14 days ng validation to be passed as input)
     val_resid = loader.load_val_residuals(target, f"Well-Milled {target.capitalize()}_val_residual")
-    val_resid_tail = val_resid.iloc[-CONFIG.lookback:]
-    val_trends_tail = trends_val.iloc[-CONFIG.lookback:]
-    val_sentiment_tail = sentiment_val.iloc[-CONFIG.lookback:]
+    val_resid_tail = val_resid.iloc[-CONFIG[target].lookback:]
+    val_trends_tail = trends_val.iloc[-CONFIG[target].lookback:]
+    val_sentiment_tail = sentiment_val.iloc[-CONFIG[target].lookback:]
 
-    residual_learning = ResidualLearning(sarimax, lstm, target=target, steps=CONFIG.horizon)
+    residual_learning = ResidualLearning(sarimax, lstm, target=target, steps=CONFIG[target].horizon)
     residual_learning.run_rolling(
         endog=endog_test,
         exog=exog_test,
