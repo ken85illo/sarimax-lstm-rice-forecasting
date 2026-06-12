@@ -195,9 +195,9 @@ class ResidualLearning:
             mae_score = mae(pred, actual)
             mape_score = mape(pred, actual)
 
-            rmse_score = truncate(rmse_score, ResidualLearning.TRUNCATE_DECIMALS)
-            mae_score = truncate(mae_score, ResidualLearning.TRUNCATE_DECIMALS)
-            mape_score = truncate(mape_score, ResidualLearning.TRUNCATE_DECIMALS)
+            rmse_score = truncate(rmse_score, 2)
+            mae_score = truncate(mae_score, 2)
+            mape_score = truncate(mape_score, 2)
 
             df_row = pd.DataFrame([{'model': label, 'rmse': rmse_score, 'mae': mae_score, 'mape': mape_score}])
             errors_df = pd.concat([errors_df, df_row], ignore_index=True)
