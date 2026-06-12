@@ -51,7 +51,7 @@ class LSTMCell:
         return self.h_t, self.c_t
 
     # == Backward Pass ==
-    def backward_pass(self, dh_next, dc_next, learning_rate, state=None, clip_value=5.0):
+    def backward_pass(self, dh_next, dc_next, state=None):
         if state is not None:
             self.x_t = state["x_t"]
             self.h_prev = state["h_prev"]
@@ -107,7 +107,7 @@ class LSTMCell:
         self.dW_o = np.zeros_like(self.W_o)
         self.db_o = np.zeros_like(self.b_o)
     
-    def update_weights(self, learning_rate, clip_threshold = 1.0):
+    def update_weights(self, learning_rate):
         # Update forget gate
         self.W_f -= learning_rate * self.dW_f
         self.b_f -= learning_rate * self.db_f
