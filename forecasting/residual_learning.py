@@ -24,7 +24,7 @@ class ResidualLearning:
             sentiment_tail,
             start_date, 
             end_date,
-            target_csv=None, is_test_set=True):
+            target_csv=None, is_test_set=True, target='low'):
         
         
         all_fusion = []
@@ -83,13 +83,13 @@ class ResidualLearning:
         comparison = pd.DataFrame({
             "Date": all_dates,
             "Actual": all_actuals,
-            "SARIMAX": np.round(all_sarimax), # Ni-round ko para hindi decimal yung forecast
+            "SARIMAX": np.round(all_sarimax), # truncate(all_sarimax, decimals=self.TRUNCATE_DECIMALS), # Ni-round ko para hindi decimal yung forecast
             "Residuals": all_residuals,
             "LSTM Correction": np.array(all_lstm).flatten(),
-            "Final Forecast": np.round(all_fusion), # Same here naka round din
+            "Final Forecast": np.round(all_fusion) # truncate(all_fusion, decimals=self.TRUNCATE_DECIMALS), # Same here naka round din
         })
 
-        df_errors = self._report(comparison)
+        self._report(comparison, target, is_test_set)
 
         residuals = pd.DataFrame({
             "Date": all_dates,
@@ -119,7 +119,7 @@ class ResidualLearning:
                 
         self._save_csv(target_csv, comparison, residuals, forecast, is_test_set)
 
-        return df_errors
+        return comparison
 
         
     def _forecast_one_step(
@@ -180,7 +180,7 @@ class ResidualLearning:
 
     # == Just another method for printing sa terminal == 
     @staticmethod
-    def _report(comparison: pd.DataFrame):
+    def _report(comparison: pd.DataFrame, target, is_test_set = False):
         errors_df = pd.DataFrame()
         
         # Prints the final forecast output 
@@ -195,6 +195,10 @@ class ResidualLearning:
             mae_score = mae(pred, actual)
             mape_score = mape(pred, actual)
 
+            rmse_score = truncate(rmse_score, ResidualLearning.TRUNCATE_DECIMALS)
+            mae_score = truncate(mae_score, ResidualLearning.TRUNCATE_DECIMALS)
+            mape_score = truncate(mape_score, ResidualLearning.TRUNCATE_DECIMALS)
+
             df_row = pd.DataFrame([{'model': label, 'rmse': rmse_score, 'mae': mae_score, 'mape': mape_score}])
             errors_df = pd.concat([errors_df, df_row], ignore_index=True)
             
@@ -204,4 +208,7 @@ class ResidualLearning:
             print(f"MAE:   {mae_score:.4f}")
             print(f"MAPE:  {mape_score:.4f}%")
         
-        return errors_df
+        prefix = "test_demo" if is_test_set else "final_demo"
+        errors_json = F"output/{prefix}_{target}_errors.json"
+
+        errors_df.to_json(errors_json, orient='records', indent=4)

@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 import pandas as pd
 import os
+import json
 import io
 import zipfile
 
@@ -47,14 +48,24 @@ async def process_csv(sarimax_input_file: UploadFile = File(...), lstm_input_fil
     # run_residual_learning_test_set("high")
     # run_residual_learning_test_set("low")
     
-    df_low_errors, df_high_errors = run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, sentiment_df)
+    run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, sentiment_df)
     
     df_high_forecast = pd.read_csv("output/final_demo_prediction_high.csv")
     df_low_forecast = pd.read_csv("output/final_demo_prediction_low.csv")
 
+    high_errors_path = "output/final_demo_high_errors.json"
+    low_errors_path = "output/final_demo_low_errors.json"
+
+    with open(high_errors_path, "r", encoding="utf-8") as f:
+        high_errors_data = json.load(f)
+        
+    # Load the low errors JSON file safely back into a Python list/dict
+    with open(low_errors_path, "r", encoding="utf-8") as f:
+        low_errors_data = json.load(f)
+
     return {
         "high_forecast": df_high_forecast.to_dict(orient="records"),
-        "high_forecast_errors": df_high_errors.to_dict(orient="records"),
+        "high_forecast_errors": high_errors_data,
         "low_forecast": df_low_forecast.to_dict(orient="records"),
-        "low_forecast_errors": df_low_errors.to_dict(orient="records")
+        "low_forecast_errors": low_errors_data
     }
