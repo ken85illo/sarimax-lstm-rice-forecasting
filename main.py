@@ -15,7 +15,7 @@ from statsmodels.stats.diagnostic import acorr_ljungbox
 CONFIG = ModelConfig(
     lookback=14,
     horizon=14,
-    hidden_size=16, # need to retrain if changed
+    hidden_size=64, # need to retrain if changed
     learning_rate=0.001,
     epochs=50,
     patience=10,
@@ -62,6 +62,9 @@ def train_lstm_residuals(target = "high"):
         val_features=list(zip(val_resid, trends_val, pos_val, neu_val, neg_val)),
         target=target,
     )
+
+    print(prep.scaler.inverse_transform(X_val[1]))
+    print(prep.scaler.inverse_transform_feature(y_train[1], 0))
 
     # Build, train, and save
     network = LSTMNetwork(
@@ -212,6 +215,6 @@ def sanity_check_overfit():
 
 # == Entry point ==
 if __name__ == "__main__":
-    train_lstm_residuals(target="low")
+    # train_lstm_residuals(target="low")
     # run_residual_learning_test_set(target="high")
     run_residual_learning_test_set(target="low")

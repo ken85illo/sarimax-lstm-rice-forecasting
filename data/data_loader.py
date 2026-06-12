@@ -20,12 +20,12 @@ class DataLoader:
 
     # == Loads Google Trends CSV ==
     def load_trends(self, max_rows):
-        df = pd.read_csv(self.paths.combined_trends_csv)
+        df = pd.read_csv(self.paths.trends_csv)
         df = df[:max_rows]
-        df["Day"] = pd.to_datetime(df["Day"])
-        df = df.set_index("Day")
+        df["Date"] = pd.to_datetime(df["Date"])
+        df = df.set_index("Date")
 
-        return df["Google Trends"]
+        return df["Search"]
 
     def load_sentiments(self, max_rows):
         df = pd.read_csv(self.paths.sentiments_csv)
