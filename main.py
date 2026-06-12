@@ -232,4 +232,4 @@ def sanity_check_overfit():
 if __name__ == "__main__":
     # train_lstm_residuals(target="low")
     # run_residual_learning_test_set(target="high")
-    run_residual_learning_test_set(target="low")
+    run_residual_learning_test_set(target="high")
