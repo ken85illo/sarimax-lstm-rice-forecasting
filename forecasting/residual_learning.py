@@ -5,7 +5,7 @@ from forecasting import LSTM
 from utils import mae, mape, rmse, print_tabulation, truncate
 
 class ResidualLearning:
-    TRUNCATE_DECIMALS = 2
+    TRUNCATE_DECIMALS = 0
 
     def __init__(self, sarimax: SARIMAX, lstm: LSTM, target, steps):
         self.sarimax = sarimax
@@ -40,7 +40,8 @@ class ResidualLearning:
         lstm_residual_window = residuals_tail.copy()  # shape: (14,)
         lstm_trends_window = trends_tail.copy()        # shape: (14,)
         lstm_sentiment_window = sentiment_tail.copy()
-        
+
+
         while current_date <= end_date:
             window_end = min(current_date + pd.Timedelta(days=self.steps - 1), end_date)
 
@@ -63,10 +64,11 @@ class ResidualLearning:
             all_sarimax.extend(sarimax_forecast[:n])
             all_lstm.extend(lstm_prediction[:n])
             all_fusion.extend(fusion_forecast[:n])
-            all_residuals.extend(lstm_residual_window[:n])
+
 
             # Calculate the next residual by subtracting actual with SARIMAX forecast
             lstm_residual_window = (actual_window.values - sarimax_forecast[:n])
+            all_residuals.extend(lstm_residual_window[:n])
 
             # Get the next Trends and Sentiment window
             trends_window = trends_test.loc[current_date:window_end]
@@ -83,7 +85,7 @@ class ResidualLearning:
         comparison = pd.DataFrame({
             "Date": all_dates,
             "Actual": all_actuals,
-            "SARIMAX": np.round(all_sarimax), # truncate(all_sarimax, decimals=self.TRUNCATE_DECIMALS), # Ni-round ko para hindi decimal yung forecast
+            "SARIMAX": truncate(all_sarimax, decimals=self.TRUNCATE_DECIMALS), # Ni-round ko para hindi decimal yung forecast
             "Residuals": all_residuals,
             "LSTM Correction": np.array(all_lstm).flatten(),
             "Final Forecast": np.round(all_fusion) # truncate(all_fusion, decimals=self.TRUNCATE_DECIMALS), # Same here naka round din
@@ -110,7 +112,7 @@ class ResidualLearning:
         forecast_dates = [current_date.date() + pd.Timedelta(days=t) for t in range(len(fusion_forecast)) ]
         forecast = pd.DataFrame({
             "Date": forecast_dates,
-            "SARIMAX Forecast": np.round(sarimax_forecast.values),
+            "SARIMAX Forecast": truncate(sarimax_forecast.values, self.TRUNCATE_DECIMALS),
             "Residual Forecast": np.round(fusion_forecast.flatten()),
         })
         print()
@@ -151,9 +153,10 @@ class ResidualLearning:
         if target_csv:
             resid_csv = f"output/{prefix}_demo_residuals_{target_csv}.csv"
             forecast_csv = f"output/{prefix}_forecast_{target_csv}.csv"
+            demo_csv = f"output/{prefix}_demo_prediction_{target_csv}.csv"
 
             if is_test_set:
-                demo_csv = f"output/{prefix}_demo_prediction_{target_csv}.json"
+                demo_json = f"output/{prefix}_demo_prediction_{target_csv}.json"
     
                 # Create a temporary copy so we don't mutate your original DataFrame
                 temp_comparison = comparison.copy()
@@ -165,12 +168,9 @@ class ResidualLearning:
                     temp_comparison['Date'] = pd.to_datetime(temp_comparison['Date']).dt.strftime('%Y-%m-%d')
                 
                 # Export the temporary dataframe to JSON
-                temp_comparison.to_json(demo_csv, orient='records', indent=4)
+                temp_comparison.to_json(demo_json, orient='records', indent=4)
 
-            else:
-                demo_csv = f"output/{prefix}_demo_prediction_{target_csv}.csv"
-                comparison.to_csv(demo_csv)
-
+            comparison.to_csv(demo_csv)
             residuals.to_csv(resid_csv)
             forecast.to_csv(forecast_csv)
                 

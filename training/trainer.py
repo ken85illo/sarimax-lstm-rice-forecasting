@@ -24,7 +24,6 @@ class Trainer:
             total_loss = epoch_loss
 
             val_loss = self._evaluate(X_val, y_val) if X_val is not None else None
-
             self._log(epoch, epoch_loss, val_loss)
 
             if val_loss is not None:
