@@ -1,13 +1,15 @@
 import numpy as np
+from utils import RNG
 
 class OutputLayer:
     # Ito yung y = W_y @ h + b_y.
 
-    def __init__(self, hidden_size: int, output_size: int, scale: float, rng):
+    def __init__(self, hidden_size: int, output_size: int):
         self.hidden_size = hidden_size
         self.output_size = output_size
+        glorot_scale =  np.sqrt(6.0 / (hidden_size + output_size)) # Glorot
 
-        self.W_y = rng.uniform(-scale, scale, (output_size, hidden_size))
+        self.W_y = RNG.uniform(-glorot_scale, glorot_scale, (output_size, hidden_size))
         self.b_y = np.zeros(output_size)
 
         self.reset_gradients()

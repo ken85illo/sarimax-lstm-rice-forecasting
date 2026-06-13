@@ -1,11 +1,15 @@
 import numpy as np
 from lstm import LSTMNetwork
 import matplotlib.pyplot as plt
+from utils import MinMaxScaler
 
 from utils import huber_loss, huber_loss_derivative, RNG
 from .checkpoint import ModelCheckpoint
 
+
 class Trainer:
+    LOSS_DELTA = 4.0
+
     def __init__(self, network: LSTMNetwork, learning_rate: float = 0.001, epochs: int = 300, patience: int = 20, dropout_rate = 0.1):
         self.network = network
         self.learning_rate = learning_rate
@@ -52,34 +56,35 @@ class Trainer:
     def _train_one_epoch(self, X_train, y_train) -> float:
         epoch_loss = 0.0
 
+
         for X_seq, y_true in zip(X_train, y_train):
             states, step_hs, y_pred = self._forward_sequence(X_seq, len(y_true))
             y_pred = y_pred.flatten()
 
             # Output layer forward from y_pred then compute yung loss (MSE)
-            loss = huber_loss(y_pred, y_true)
-            dy = huber_loss_derivative(y_pred, y_true).flatten()
+            loss = huber_loss(y_pred, y_true, self.LOSS_DELTA)
+            dy = huber_loss_derivative(y_pred, y_true, self.LOSS_DELTA).flatten()
             epoch_loss += loss
 
             # Backpropagation ng LSTM cell
             dh = np.zeros(self.network.hidden_size)
             dc = np.zeros(self.network.hidden_size)
 
-            encoder_states = states[:len(X_seq)]   
-            decoder_states = states[len(X_seq):]   
+            input_states = states[:len(X_seq)]   
+            prediction_states = states[len(X_seq):]   
 
             # Output layer backward (returns dh hidden state na ginagamit sa backpropagation)
             for step in reversed(range(len(y_true))):
                 dy_step = np.atleast_1d(dy[step])
                 dh += self.network.output_layer.backward(dy_step, step_hs[step])
                 dh, dc = self.network.lstm_cell.backward_pass(
-                    dh, dc, self.learning_rate, state=decoder_states[step]
+                    dh, dc, state=prediction_states[step]
                 )
 
             # Then backprop through encoder
-            for state in reversed(encoder_states):
+            for state in reversed(input_states):
                 dh, dc = self.network.lstm_cell.backward_pass(
-                    dh, dc, self.learning_rate, state=state
+                    dh, dc, state=state
                 )
             
             self._clip_gradient()
@@ -98,11 +103,9 @@ class Trainer:
             self.network.lstm_cell.db_c, self.network.lstm_cell.db_o,
             self.network.output_layer.dW_y, self.network.output_layer.db_y,
         ]
-        total_norm = np.sqrt(sum(np.sum(g**2) for g in all_grads))
-        if total_norm > clip_threshold:
-            scale = clip_threshold / (total_norm + 1e-8)
-            for g in all_grads:
-                g[:] *= scale
+
+        for grad in all_grads:
+            np.clip(grad, -clip_threshold, clip_threshold, out=grad)
 
 
     def _forward_sequence(self, X_seq, steps):
@@ -119,24 +122,14 @@ class Trainer:
         for t in range(len(sequence)):
             x_t = sequence[t]
 
-            h_prev, c_prev = h.copy(), c.copy()
-            h, c = cell.forward_pass(x_t, h, c)
+            h, c, state = cell.forward_pass(x_t, h, c)
 
             # Dropout Rate
             if self.dropout_rate is not None:
                 mask = (RNG.random(h.shape) > self.dropout_rate).astype(float)
                 h = h * mask / (1 - self.dropout_rate)
 
-            states.append({
-                "x_t":     x_t,
-                "h_prev":  h_prev,
-                "c_prev":  c_prev,
-                "f_t":     cell.f_t,
-                "i_t":     cell.i_t,
-                "c_tilde": cell.c_tilde,
-                "c_t":     cell.c_t,
-                "o_t":     cell.o_t,
-            })
+            states.append(state)
 
         # Get predictions (after to nung forward pass sa input sequence)
         predictions = []
@@ -151,24 +144,15 @@ class Trainer:
             sequence.append(x_t)
             sequence.pop(0)  
 
-            h_prev, c_prev = h.copy(), c.copy()
-            h, c = cell.forward_pass(x_t, h, c)
+            h, c, state = cell.forward_pass(x_t, h, c)
 
             # Dropout Rate
             if self.dropout_rate is not None:
                 mask = (RNG.random(h.shape) > self.dropout_rate).astype(float)
                 h = h * mask / (1 - self.dropout_rate)
 
-            states.append({
-                "x_t":     x_t,
-                "h_prev":  h_prev,
-                "c_prev":  c_prev,
-                "f_t":     cell.f_t,
-                "i_t":     cell.i_t,
-                "c_tilde": cell.c_tilde,
-                "c_t":     cell.c_t,
-                "o_t":     cell.o_t,
-            })
+            states.append(state)
+
 
         return states, step_hs, np.array(predictions)
 

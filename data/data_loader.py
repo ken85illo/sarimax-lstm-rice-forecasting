@@ -43,7 +43,7 @@ class DataLoader:
             df = df.set_index("Date")
             df.index = pd.to_datetime(df.index)
 
-        return df[col].diff().fillna(0)
+        return df[col]
 
     def load_val_residuals(self, label, col):
         path = self.paths.val_residuals(label)
@@ -52,7 +52,7 @@ class DataLoader:
             df = df.set_index("Date")
             df.index = pd.to_datetime(df.index)
 
-        return df[col].diff().fillna(0)
+        return df[col]
     
     def load_test_residuals(self, label):
         path = self.paths.test_residuals(label)

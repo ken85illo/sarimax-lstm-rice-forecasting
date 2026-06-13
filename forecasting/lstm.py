@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from config import ModelConfig
 from lstm.lstm_network import LSTMNetwork
 from utils.min_max_scaler import MinMaxScaler
@@ -45,6 +46,30 @@ class LSTM:
         input_dates = [window_start + pd.Timedelta(days=t) for t in range(len(inverse_input)) ]
         output_dates = [current_date + pd.Timedelta(days=t) for t in range(len(predicted)) ]
 
+        predicted = predicted.flatten()
+
+        max_len = max(len(inverse_input), len(predicted))
+
+        def pad_to_max(arr):
+            if len(arr) >= max_len:
+                return arr
+            diff = max_len - len(arr)
+            
+            if isinstance(arr, np.ndarray):
+                pad_shape = list(arr.shape)
+                pad_shape[0] = diff  
+                return np.concatenate([arr, np.full(pad_shape, np.nan)], axis=0)
+            elif isinstance(arr, list):
+                return arr + [np.nan] * diff
+            return arr
+
+        inverse_input = pad_to_max(inverse_input)
+        input_dates = pad_to_max(input_dates)
+        output_dates = pad_to_max(output_dates)
+        predicted = pad_to_max(predicted)
+
+
+
         print_df = pd.DataFrame({
             "Input": input_dates,
             "Residual": inverse_input[:, 0],
@@ -53,7 +78,7 @@ class LSTM:
             "Neutral": inverse_input[:, 3],
             "Negative": inverse_input[:, 4],
             "Output": output_dates,
-            "Prediction": predicted.flatten(),
+            "Prediction": predicted,
         })
         print()
         target = f"({self.target.capitalize()}) "

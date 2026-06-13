@@ -13,8 +13,6 @@ class LSTMNetwork:
         self.output_layer = OutputLayer(
             hidden_size=hidden_size,
             output_size=output_size,
-            scale=self.lstm_cell.scale,
-            rng=self.lstm_cell.rng,
         )
 
     def predict(self, X_seq: np.ndarray, steps = 14) -> np.ndarray:
@@ -26,7 +24,7 @@ class LSTMNetwork:
 
         # Forward pass thorugh input feature
         for t in range(len(sequence)):
-            h, c = self.lstm_cell.forward_pass(sequence[t], h, c)
+            h, c, _ = self.lstm_cell.forward_pass(sequence[t], h, c)
 
         for _ in range(steps):
             pred = self.output_layer.forward(h)  
@@ -38,7 +36,7 @@ class LSTMNetwork:
             sequence.append(last_features)
             sequence.pop(0)  
 
-            h, c = self.lstm_cell.forward_pass(last_features, h, c)
+            h, c, _ = self.lstm_cell.forward_pass(last_features, h, c)
 
         return np.array(predictions)
 
