@@ -53,8 +53,12 @@ async def process_csv(sarimax_input_file: UploadFile = File(...), lstm_input_fil
     df_high_forecast = pd.read_csv("output/final_demo_prediction_high.csv")
     df_low_forecast = pd.read_csv("output/final_demo_prediction_low.csv")
 
+    df_high_final_forecast = pd.read_csv("output/final_forecast_high.csv")
+    df_low_final_forecast = pd.read_csv("output/final_forecast_low.csv")
+
     high_errors_path = "output/final_demo_high_errors.json"
     low_errors_path = "output/final_demo_low_errors.json"
+
 
     with open(high_errors_path, "r", encoding="utf-8") as f:
         high_errors_data = json.load(f)
@@ -63,9 +67,12 @@ async def process_csv(sarimax_input_file: UploadFile = File(...), lstm_input_fil
     with open(low_errors_path, "r", encoding="utf-8") as f:
         low_errors_data = json.load(f)
 
+
     return {
         "high_forecast": df_high_forecast.to_dict(orient="records"),
         "high_forecast_errors": high_errors_data,
         "low_forecast": df_low_forecast.to_dict(orient="records"),
-        "low_forecast_errors": low_errors_data
+        "low_forecast_errors": low_errors_data,
+        "high_final_forecast": df_high_final_forecast.to_dict(orient="records"),
+        "low_final_forecast": df_low_final_forecast.to_dict(orient="records")
     }
