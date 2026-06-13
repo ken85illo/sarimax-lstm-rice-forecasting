@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from utils import create_sequences, create_sequences_multistep, MinMaxScaler
 from config import ModelConfig
+from scipy.stats import pearsonr
 
 
 class Preprocessor:
@@ -23,11 +24,20 @@ class Preprocessor:
 
     # == Build (X_train, y_train, X_val, y_val) in one call ==
     def prepare_training(self, train_features, val_features, target, multistep=True):
+        train_arr = np.array(train_features)
+        val_arr = np.array(val_features)
+
+        lower = np.percentile(train_arr[:, 0], 1)   # only clip the residual column (col 0)
+        upper = np.percentile(train_arr[:, 0], 99)
+
+        train_arr[:, 0] = np.clip(train_arr[:, 0], lower, upper)
+        val_arr[:, 0] = np.clip(val_arr[:, 0], lower, upper)  # use training bounds on val
+
         # Fits the min-max scaler to the features
-        scaled_train = self.scaler.fit_transform(train_features)
+        scaled_train = self.scaler.fit_transform(train_arr.tolist())
 
         # Scales the validation set to min-max 
-        scaled_val = self.scaler.transform(val_features)
+        scaled_val = self.scaler.transform(val_arr.tolist())
         self.scaler.save_scaler(target)
 
         # Produces forecast for output size > 1 (nakabase sa horizon)

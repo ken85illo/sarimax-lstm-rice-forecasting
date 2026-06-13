@@ -1,8 +1,6 @@
 import numpy as np
 import pandas as pd
 
-import matplotlib.pyplot as plt
-from statsmodels.graphics.tsaplots import plot_acf
 from utils import split_sentiment_classes
 from config import ModelConfig, PathConfig
 from data import DataLoader, Preprocessor
@@ -14,26 +12,25 @@ from forecasting import SARIMAX, LSTM, ResidualLearning
 CONFIG = {
     "high" : ModelConfig(
         lookback=14,
-        horizon=1,
+        horizon=14,
         hidden_size=16, # need to retrain if changed
         learning_rate=0.001,
         epochs=25,
         patience=10,
         input_size=5,
-        output_size=1,
+        output_size=14,
         dropout_rate=0.1
     ),
     "low": ModelConfig(
         lookback=14,
         horizon=14,
-        hidden_size=32, # need to retrain if changed
-        learning_rate=0.001,
-        epochs=25,
+        hidden_size=8, # need to retrain if changed
+        learning_rate=0.0001,
+        epochs=500,
         patience=10,
         input_size=5,
-        output_size=1,
-        dropout_rate=0.1
-
+        output_size=14,
+        dropout_rate=None
     )
 }
 

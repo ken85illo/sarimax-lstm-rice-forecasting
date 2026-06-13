@@ -17,7 +17,7 @@ class MinMaxScaler:
     # Transform the features
     def transform(self, data):
         data = np.array(data)
-        X_std = (data - self.min) / (self.max - self.min)
+        X_std = (data - self.min) / (self.max - self.min + 1e-8)
 
         feat_min, feat_max = self.feature_range
         return X_std * (feat_max - feat_min) + feat_min
