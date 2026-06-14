@@ -30,7 +30,7 @@ class LSTM:
         feature_pairs = list(zip(residual_window, trends_window, pos_window, neu_window, neg_window))
         scaled_input = self.scaler.transform(feature_pairs)
 
-        raw_pred = self.network.predict(scaled_input).reshape(-1, 1)
+        raw_pred = self.network.predict_multistep(scaled_input, steps).reshape(-1, 1)
         predicted = self.scaler.inverse_transform_feature(raw_pred, 0)
 
         self._print_window(scaled_input, predicted, current_date)

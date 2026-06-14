@@ -1,9 +1,6 @@
 import numpy as np
 import pandas as pd
 from utils import create_sequences, create_sequences_multistep, MinMaxScaler
-from config import ModelConfig
-from scipy.stats import pearsonr
-
 
 class Preprocessor:
     def __init__(self, config = None):
@@ -27,11 +24,6 @@ class Preprocessor:
         train_arr = np.array(train_features)
         val_arr = np.array(val_features)
 
-        lower = np.percentile(train_arr[:, 0], 1)   # only clip the residual column (col 0)
-        upper = np.percentile(train_arr[:, 0], 99)
-
-        train_arr[:, 0] = np.clip(train_arr[:, 0], lower, upper)
-        val_arr[:, 0] = np.clip(val_arr[:, 0], lower, upper)  # use training bounds on val
 
         # Fits the min-max scaler to the features
         scaled_train = self.scaler.fit_transform(train_arr.tolist())

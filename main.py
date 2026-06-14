@@ -7,6 +7,9 @@ from data import DataLoader, Preprocessor
 from lstm import LSTMNetwork
 from training import Trainer
 from forecasting import SARIMAX, LSTM, ResidualLearning
+from statsmodels.stats.diagnostic import acorr_ljungbox
+from statsmodels.graphics.tsaplots import plot_acf
+import matplotlib.pyplot as plt
 
 # == Shared config ==
 CONFIG = {
@@ -24,12 +27,12 @@ CONFIG = {
     "low": ModelConfig(
         lookback=14,
         horizon=14,
-        hidden_size=8, # need to retrain if changed
-        learning_rate=0.0001,
-        epochs=500,
+        hidden_size=16, # need to retrain if changed
+        learning_rate=0.001,
+        epochs=200,
         patience=10,
         input_size=5,
-        output_size=14,
+        output_size=1,
         dropout_rate=None
     )
 }
@@ -47,6 +50,18 @@ def split_sentiments():
     sentiments = loader.load_sentiments(max_rows = 2312)
     return Preprocessor.train_val_test_split(sentiments, 0.70, 0.20)
 
+def statistical_test(train_resid, val_resid, target):
+    print("LJUNG BOX TEST (RESIDUALS)")
+    print(acorr_ljungbox(train_resid, lags=[3, 7, 14], return_df=True))
+    print(acorr_ljungbox(val_resid, lags=[3, 7, 14], return_df=True))
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    plot_acf(train_resid, lags=20, title = "Train Dataset", ax=axes[0])
+    plot_acf(val_resid, lags=20, title="Validation Dataset", ax = axes[1])
+    plt.savefig(f"output/acf_plot_{target}.png")
+
+
+
 # == Training pipelines ==
 def train_lstm_residuals(target = "high"):
     print(f"=== Training: Well-Milled {target.capitalize()} ===")
@@ -60,13 +75,17 @@ def train_lstm_residuals(target = "high"):
     pos_train, neu_train, neg_train = split_sentiment_classes(sentiment_train)
     pos_val, neu_val, neg_val = split_sentiment_classes(sentiment_val)
 
+    statistical_test(train_resid, val_resid, target)
+
     # Preprocess
     prep = Preprocessor(CONFIG[target])
     X_train, y_train, X_val, y_val = prep.prepare_training(
         train_features=list(zip(train_resid, trends_train, pos_train, neu_train, neg_train)),
         val_features=list(zip(val_resid, trends_val, pos_val, neu_val, neg_val)),
         target=target,
+        multistep=False,
     )
+
 
     # Build, train, and save
     network = LSTMNetwork(
@@ -203,21 +222,55 @@ def run_residual_learning_test_set(target = "high"):
 
 # == Sanity Check == 
 def sanity_check_overfit():
-    print("=== Sanity check (overfitting a single sample) ===")
+    net = LSTMNetwork(input_size=1, hidden_size=8, output_size=1)
 
-    network = LSTMNetwork(input_size=3, hidden_size=64, output_size=1)
-    trainer = Trainer(network, learning_rate=0.1, epochs=200, patience=20)
+    np.random.seed(42)
+    # Single fixed sequence
+    X_seq = np.random.randn(7, 1)
+    y_true = X_seq[-1].flatten()
 
-    X_sample = np.random.randn(5, 3)
-    y_sample = np.array([0.8])
+    lr = 0.01
+    clip = 5.0
 
-    trainer.train([X_sample], [y_sample], [X_sample], [y_sample])
+    for step in range(200):
+        h = np.zeros(8)
+        c = np.zeros(8)
+        fw_hs = []
+        fw_states = []
 
-    pred = network.predict(X_sample)
-    print(f"\nTarget: {y_sample}  |  Prediction: {pred}")
+        for t in range(7):
+            h, c, state = net.lstm_cell.forward_pass(X_seq[t], h, c)
+            fw_states.append(state)
+            fw_hs.append(h.copy())
+
+        h_final = fw_hs[-1]
+        y_pred = net.output_layer.forward(h_final)
+
+        loss = np.mean((y_pred - y_true)**2)
+        dy = 2*(y_pred - y_true)/len(y_true)
+
+        dh = net.output_layer.backward(dy, h_final)
+        dc = np.zeros(8)
+
+        for t in reversed(range(7)):
+            dh, dc = net.lstm_cell.backward_pass(dh, dc, fw_states[t])
+
+        # Clip gradients
+        fw = net.lstm_cell
+        for grad in [fw.dW_f, fw.dW_i, fw.dW_c, fw.dW_o,
+                     fw.db_f, fw.db_i, fw.db_c, fw.db_o,
+                     net.output_layer.dW_y, net.output_layer.db_y]:
+            np.clip(grad, -clip, clip, out=grad)
+
+        net.lstm_cell.update_weights(lr)
+        net.output_layer.update_weights(lr)
+
+        if step % 20 == 0:
+            print(f"Step {step}: loss={loss:.6f}, pred={y_pred[0]:.4f}, true={y_true[0]:.4f}")
 
 # == Entry point ==
 if __name__ == "__main__":
+    # sanity_check_overfit()
     train_lstm_residuals(target="low")
     # run_residual_learning_test_set(target="high")
     run_residual_learning_test_set(target="low")

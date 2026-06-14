@@ -58,7 +58,7 @@ class Trainer:
         for X_seq, y_true in zip(X_train, y_train):
             y_true = y_true.flatten()
 
-            fw_states, bw_states, h_concat_final, y_pred = self._forward_sequence(X_seq, len(y_true))
+            states, h, y_pred = self._forward_sequence(X_seq)
             y_pred = y_pred.flatten()
 
             # Output layer forward from y_pred then compute yung loss (MSE)
@@ -66,27 +66,18 @@ class Trainer:
             dy = huber_loss_derivative(y_pred, y_true, self.LOSS_DELTA).flatten()
             epoch_loss += loss
 
-            dh_concat = self.network.output_layer.backward(dy, h_concat_final)
-
             # Backpropagation ng LSTM cell
-            dh_fw = dh_concat[:self.network.hidden_size].copy()
-            dh_bw = dh_concat[self.network.hidden_size:].copy()
-            
-            dc_fw = np.zeros(self.network.hidden_size)
-            dc_bw = np.zeros(self.network.hidden_size)
+            dh = self.network.output_layer.backward(dy, h)
+            dc = np.zeros(self.network.hidden_size)
 
             T = len(X_seq)
 
             # Output layer backward (returns dh hidden state na ginagamit sa backpropagation)
             for t in reversed(range(T)):
-                dh_fw, dc_fw = self.network.forward_cell.backward_pass(dh_fw, dc_fw, state=fw_states[t])
-
-            for t in range(T):
-                dh_bw, dc_bw = self.network.backward_cell.backward_pass(dh_bw, dc_bw, state=bw_states[t])
+                dh, dc = self.network.lstm_cell.backward_pass(dh, dc, state=states[t])
             
             self._clip_gradient()
-            self.network.forward_cell.update_weights(self.learning_rate)
-            self.network.backward_cell.update_weights(self.learning_rate)
+            self.network.lstm_cell.update_weights(self.learning_rate)
             self.network.output_layer.update_weights(self.learning_rate)
         
         return epoch_loss / len(X_train)
@@ -94,58 +85,36 @@ class Trainer:
 
     def _clip_gradient(self, clip_threshold = 5.0):
         # Gradient clipping (prevents grdient explosion)
-        fw, bw = self.network.forward_cell, self.network.backward_cell
+        cell = self.network.lstm_cell
         all_grads = [
-            fw.dW_f, fw.dW_i, fw.dW_c, fw.dW_o, fw.db_f, fw.db_i, fw.db_c, fw.db_o,
-            bw.dW_f, bw.dW_i, bw.dW_c, bw.dW_o, bw.db_f, bw.db_i, bw.db_c, bw.db_o,
+            cell.dW_f, cell.dW_i, cell.dW_c, cell.dW_o, cell.db_f, cell.db_i, cell.db_c, cell.db_o,
             self.network.output_layer.dW_y, self.network.output_layer.db_y,
         ]
         for grad in all_grads:
             np.clip(grad, -clip_threshold, clip_threshold, out=grad)
 
 
-    def _forward_sequence(self, X_seq, steps):
-        fw_cell = self.network.forward_cell
-        bw_cell = self.network.backward_cell
+    def _forward_sequence(self, X_seq):
+        cell = self.network.lstm_cell
 
         T = len(X_seq)
 
-        fw_states = []
-        bw_states = [None] * T
-        
-        h_fw_list = []
-        h_bw_list = [None] * T
-
-        h_fw = np.zeros(self.network.hidden_size)
-        c_fw = np.zeros(self.network.hidden_size)
+        states = []
+        h = np.zeros(self.network.hidden_size)
+        c = np.zeros(self.network.hidden_size)
 
         # Forward pass through input sequence 
         for t in range(T):
-            h_fw, c_fw, state = fw_cell.forward_pass(X_seq[t], h_fw, c_fw)
+            h, c, state = cell.forward_pass(X_seq[t], h, c)
             if self.dropout_rate:
-                mask = (RNG.random(h_fw.shape) > self.dropout_rate).astype(float)
-                h_fw = h_fw * mask / (1 - self.dropout_rate)
+                mask = (RNG.random(h.shape) > self.dropout_rate).astype(float)
+                h = h * mask / (1 - self.dropout_rate)
             
-            fw_states.append(state)
-            h_fw_list.append(h_fw.copy())
+            states.append(state)
 
-        h_bw = np.zeros(self.network.hidden_size)
-        c_bw = np.zeros(self.network.hidden_size)
+        y_pred = self.network.output_layer.forward(h)
 
-        # Backward pass (after to nung forward pass sa input sequence)
-        for t in reversed(range(T)):
-            h_bw, c_bw, state = bw_cell.forward_pass(X_seq[t], h_bw, c_bw)
-            if self.dropout_rate:
-                mask = (RNG.random(h_bw.shape) > self.dropout_rate).astype(float)
-                h_bw = h_bw * mask / (1 - self.dropout_rate)
-            
-            bw_states[t] = state
-            h_bw_list[t] = h_bw.copy()
-
-        h_concat_final = np.concatenate((h_fw_list[-1], h_bw_list[0]), axis=0)
-        y_pred = self.network.output_layer.forward(h_concat_final)
-
-        return fw_states, bw_states, h_concat_final, y_pred
+        return states, h, y_pred
 
     def _evaluate(self, X_val, y_val) -> float:
         # Compute average MSE on the validation set (no weight updates)
@@ -171,11 +140,11 @@ class Trainer:
         def run_predictions(X, y):
             preds, actuals = [], []
 
-            for i, (X_seq, y_true) in enumerate(zip(X, y)):
-                if i % len(y_true) != 0:   # Every 14 days
-                    continue
+            for (X_seq, y_true) in zip(X, y):
+                y_true = np.array(y_true)
+                y_pred = np.array(self.network.predict(X_seq))
 
-                y_pred = self.network.predict(X_seq)
+
                 preds.extend(y_pred.flatten())
                 actuals.extend(y_true.flatten())
  
@@ -224,6 +193,21 @@ class Trainer:
  
         plt.tight_layout()
         plt.savefig(f"output/{target}_training_val_plot.png")
+
+        preds = []
+        actuals = []
+        for X_seq, y_true in zip(X_val[:50], y_val[:50]):
+            pred = self.network.predict(X_seq)
+            preds.append(pred.flatten()[0])
+            actuals.append(y_true.flatten()[0])
+
+        preds = np.array(preds)
+        actuals = np.array(actuals)
+
+        print("Pred std:", preds.std())
+        print("Actual std:", actuals.std())
+        print("Pred range:", preds.min(), preds.max())
+        print("Correlation:", np.corrcoef(preds, actuals)[0,1])
 
 
     # == Log function for train and validation loss per epoch ==
