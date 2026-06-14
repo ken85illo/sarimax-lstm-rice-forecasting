@@ -1,4 +1,4 @@
-# AI Project - XLM-RLA
+# SARIMAX-LSTM Rice Forecasting
 
 Rice price forecasting using a hybrid residual learning approach. This repository combines SARIMAX for baseline price modeling with an LSTM neural network trained on SARIMAX residuals and Google Trends data.
 
@@ -21,19 +21,20 @@ Rice price forecasting using a hybrid residual learning approach. This repositor
 - `main.py` - Entry point for training and evaluation workflows.
 - `config.py` - Configuration dataclasses for model hyperparameters and file paths.
 - `requirements.txt` - Python dependencies required to run the project.
-
+- `frontend/` - submodule/external user-interface repository.
 - `data/`
   - `data_loader.py` - Loads rice prices, Google Trends, ENSO index, and SARIMAX residual CSV files.
   - `preprocessor.py` - Preprocesses time series, performs dataset splitting, and generates LSTM sequences.
 
 - `datasets/`
-  - `combined_google_trends_dataset.csv`
-  - `enso_daily.csv`
   - `well_milled_rice_daily_preprocessed.csv`
   - `sarimax_train_residuals_Well-Milled_High.csv`
   - `sarimax_train_residuals_Well-Milled_Low.csv`
   - `sarimax_val_residuals_Well-Milled_High.csv`
   - `sarimax_val_residuals_Well-Milled_Low.csv`
+  - `enso_daily.csv`
+  - `combined_google_trends_dataset.csv`
+  - `daily_sentiment_scores.csv`
 
 - `forecasting/`
   - `sarimax.py` - SARIMAX model implementation and rolling forecast logic.
@@ -52,6 +53,7 @@ Rice price forecasting using a hybrid residual learning approach. This repositor
 - `utils/`
   - `min_max_scaler.py` - Custom min-max scaler for feature normalization.
   - `utils.py` - Utility helpers for sequence generation and evaluation metrics.
+  - `backend_utils.py` - Utility helpers for backend logic.
 
 - `checkpoint/`
   - Pretrained model checkpoints and scaler files used by evaluation workflows.
@@ -79,13 +81,12 @@ Rice price forecasting using a hybrid residual learning approach. This repositor
 
 ### Evaluate residual learning forecast
 
-Use `main.py` to run the residual learning evaluation.
+Use the user interface provided in the `frontend/` submodule. Open the user interface by running the `index.html` file via live server, and provide it with the necessary details. 
 
+To run the backend server that accepts the inputs, execute the script in your terminal to run the backend server.
 ```powershell
-python main.py
+uvicorn server:app --reload
 ```
-
-By default, `main.py` runs `run_residual_learning_evaluation(target="low")`.
 
 ### Train LSTM residual model
 
