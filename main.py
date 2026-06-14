@@ -18,18 +18,18 @@ CONFIG = {
         horizon=14,
         hidden_size=16, # need to retrain if changed
         learning_rate=0.001,
-        epochs=25,
+        epochs=50,
         patience=10,
         input_size=5,
-        output_size=14,
-        dropout_rate=0.1
+        output_size=1,
+        dropout_rate=None
     ),
     "low": ModelConfig(
         lookback=14,
         horizon=14,
-        hidden_size=16, # need to retrain if changed
-        learning_rate=0.001,
-        epochs=200,
+        hidden_size=128, # need to retrain if changed
+        learning_rate=0.01,
+        epochs=500,
         patience=10,
         input_size=5,
         output_size=1,
@@ -222,55 +222,21 @@ def run_residual_learning_test_set(target = "high"):
 
 # == Sanity Check == 
 def sanity_check_overfit():
-    net = LSTMNetwork(input_size=1, hidden_size=8, output_size=1)
+    print("=== Sanity check (overfitting a single sample) ===")
 
-    np.random.seed(42)
-    # Single fixed sequence
-    X_seq = np.random.randn(7, 1)
-    y_true = X_seq[-1].flatten()
+    network = LSTMNetwork(input_size=3, hidden_size=64, output_size=1)
+    trainer = Trainer(network, learning_rate=0.1, epochs=200, patience=20)
 
-    lr = 0.01
-    clip = 5.0
+    X_sample = np.random.randn(5, 3)
+    y_sample = np.array([0.8])
 
-    for step in range(200):
-        h = np.zeros(8)
-        c = np.zeros(8)
-        fw_hs = []
-        fw_states = []
+    trainer.train([X_sample], [y_sample], [X_sample], [y_sample])
 
-        for t in range(7):
-            h, c, state = net.lstm_cell.forward_pass(X_seq[t], h, c)
-            fw_states.append(state)
-            fw_hs.append(h.copy())
-
-        h_final = fw_hs[-1]
-        y_pred = net.output_layer.forward(h_final)
-
-        loss = np.mean((y_pred - y_true)**2)
-        dy = 2*(y_pred - y_true)/len(y_true)
-
-        dh = net.output_layer.backward(dy, h_final)
-        dc = np.zeros(8)
-
-        for t in reversed(range(7)):
-            dh, dc = net.lstm_cell.backward_pass(dh, dc, fw_states[t])
-
-        # Clip gradients
-        fw = net.lstm_cell
-        for grad in [fw.dW_f, fw.dW_i, fw.dW_c, fw.dW_o,
-                     fw.db_f, fw.db_i, fw.db_c, fw.db_o,
-                     net.output_layer.dW_y, net.output_layer.db_y]:
-            np.clip(grad, -clip, clip, out=grad)
-
-        net.lstm_cell.update_weights(lr)
-        net.output_layer.update_weights(lr)
-
-        if step % 20 == 0:
-            print(f"Step {step}: loss={loss:.6f}, pred={y_pred[0]:.4f}, true={y_true[0]:.4f}")
+    pred = network.predict(X_sample)
+    print(f"\nTarget: {y_sample}  |  Prediction: {pred}")
 
 # == Entry point ==
 if __name__ == "__main__":
     # sanity_check_overfit()
     train_lstm_residuals(target="low")
-    # run_residual_learning_test_set(target="high")
     run_residual_learning_test_set(target="low")

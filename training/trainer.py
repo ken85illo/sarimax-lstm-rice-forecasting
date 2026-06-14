@@ -194,20 +194,6 @@ class Trainer:
         plt.tight_layout()
         plt.savefig(f"output/{target}_training_val_plot.png")
 
-        preds = []
-        actuals = []
-        for X_seq, y_true in zip(X_val[:50], y_val[:50]):
-            pred = self.network.predict(X_seq)
-            preds.append(pred.flatten()[0])
-            actuals.append(y_true.flatten()[0])
-
-        preds = np.array(preds)
-        actuals = np.array(actuals)
-
-        print("Pred std:", preds.std())
-        print("Actual std:", actuals.std())
-        print("Pred range:", preds.min(), preds.max())
-        print("Correlation:", np.corrcoef(preds, actuals)[0,1])
 
 
     # == Log function for train and validation loss per epoch ==

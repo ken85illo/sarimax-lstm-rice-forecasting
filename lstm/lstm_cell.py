@@ -10,7 +10,7 @@ class LSTMCell:
 
         # Forget gate
         self.W_f = RNG.uniform(-glorot_scale, glorot_scale, shape)
-        self.b_f = np.zeros(hidden_size)   # initialised to 1 to encourage remembering early on
+        self.b_f = np.ones(hidden_size)   
 
         # Input gate
         self.W_i = RNG.uniform(-glorot_scale, glorot_scale, shape)
