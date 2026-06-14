@@ -36,6 +36,10 @@ Rice price forecasting using a hybrid residual learning approach. This repositor
   - `combined_google_trends_dataset.csv`
   - `daily_sentiment_scores.csv`
 
+- `colab-notebooks/`
+  - `SARIMAX.ipynb` - Colab notebook on how the SARIMAX model used in the forecasting was trained and exported.
+  - `XLM-RoBERTa.ipynb` - Colab notebook that provided the sentiment scores used in LSTM.
+
 - `forecasting/`
   - `sarimax.py` - SARIMAX model implementation and rolling forecast logic.
   - `lstm.py` - LSTM wrapper for loading/saving and making predictions on residuals.
