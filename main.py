@@ -17,7 +17,7 @@ CONFIG = {
         horizon=14,
         hidden_size=16, # need to retrain if changed
         learning_rate=0.001,
-        epochs=25,
+        epochs=300,
         patience=10,
         input_size=5,
         output_size=1,
@@ -28,7 +28,7 @@ CONFIG = {
         horizon=14,
         hidden_size=64, # need to retrain if changed
         learning_rate=0.001,
-        epochs=50,
+        epochs=100,
         patience=10,
         input_size=5,
         output_size=1,
@@ -224,6 +224,6 @@ def sanity_check_overfit():
 
 # == Entry point ==
 if __name__ == "__main__":
-    # train_lstm_residuals(target="low")
-    # run_residual_learning_test_set(target="high")
+    train_lstm_residuals(target="high")
     run_residual_learning_test_set(target="high")
+    # run_residual_learning_test_set(target="low")

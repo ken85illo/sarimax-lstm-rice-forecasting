@@ -73,13 +73,13 @@ class Trainer:
                 dy_step = np.atleast_1d(dy[step])
                 dh += self.network.output_layer.backward(dy_step, step_hs[step])
                 dh, dc = self.network.lstm_cell.backward_pass(
-                    dh, dc, self.learning_rate, state=decoder_states[step]
+                    dh, dc, state=decoder_states[step]
                 )
 
             # Then backprop through encoder
             for state in reversed(encoder_states):
                 dh, dc = self.network.lstm_cell.backward_pass(
-                    dh, dc, self.learning_rate, state=state
+                    dh, dc, state=state
                 )
             
             self._clip_gradient()
