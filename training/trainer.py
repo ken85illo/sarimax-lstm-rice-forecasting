@@ -98,11 +98,9 @@ class Trainer:
             self.network.lstm_cell.db_c, self.network.lstm_cell.db_o,
             self.network.output_layer.dW_y, self.network.output_layer.db_y,
         ]
-        total_norm = np.sqrt(sum(np.sum(g**2) for g in all_grads))
-        if total_norm > clip_threshold:
-            scale = clip_threshold / (total_norm + 1e-8)
-            for g in all_grads:
-                g[:] *= scale
+        for grad in all_grads:
+            np.clip(grad, -clip_threshold, clip_threshold, out=grad)
+
 
 
     def _forward_sequence(self, X_seq, steps):
@@ -119,24 +117,14 @@ class Trainer:
         for t in range(len(sequence)):
             x_t = sequence[t]
 
-            h_prev, c_prev = h.copy(), c.copy()
-            h, c = cell.forward_pass(x_t, h, c)
+            h, c, state = cell.forward_pass(x_t, h, c)
 
             # Dropout Rate
             if self.dropout_rate is not None:
                 mask = (RNG.random(h.shape) > self.dropout_rate).astype(float)
                 h = h * mask / (1 - self.dropout_rate)
 
-            states.append({
-                "x_t":     x_t,
-                "h_prev":  h_prev,
-                "c_prev":  c_prev,
-                "f_t":     cell.f_t,
-                "i_t":     cell.i_t,
-                "c_tilde": cell.c_tilde,
-                "c_t":     cell.c_t,
-                "o_t":     cell.o_t,
-            })
+            states.append(state)
 
         # Get predictions (after to nung forward pass sa input sequence)
         predictions = []
@@ -151,24 +139,14 @@ class Trainer:
             sequence.append(x_t)
             sequence.pop(0)  
 
-            h_prev, c_prev = h.copy(), c.copy()
-            h, c = cell.forward_pass(x_t, h, c)
+            h, c, state = cell.forward_pass(x_t, h, c)
 
             # Dropout Rate
             if self.dropout_rate is not None:
                 mask = (RNG.random(h.shape) > self.dropout_rate).astype(float)
                 h = h * mask / (1 - self.dropout_rate)
 
-            states.append({
-                "x_t":     x_t,
-                "h_prev":  h_prev,
-                "c_prev":  c_prev,
-                "f_t":     cell.f_t,
-                "i_t":     cell.i_t,
-                "c_tilde": cell.c_tilde,
-                "c_t":     cell.c_t,
-                "o_t":     cell.o_t,
-            })
+            states.append(state)
 
         return states, step_hs, np.array(predictions)
 
