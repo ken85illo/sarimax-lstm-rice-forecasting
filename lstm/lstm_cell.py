@@ -36,6 +36,8 @@ class LSTMCell:
         self.h_prev = h_prev.copy()
         self.c_prev = c_prev.copy()
 
+        # print(h_prev.shape)
+        # print(x_t.shape)
         # Initial step of concatenating input and previous hidden state
         X_t = np.concatenate((h_prev, x_t), axis=0)
 

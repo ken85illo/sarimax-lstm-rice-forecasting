@@ -24,9 +24,8 @@ class LSTM:
         return LSTM(network, scaler, config)
 
     # == Prediction ==
-    def predict(self, residual_window, trends_window, sentiment_window, current_date, steps):
-        pos_window, neu_window, neg_window = split_sentiment_classes(sentiment_window)
-        feature_pairs = list(zip(residual_window, trends_window, pos_window, neu_window, neg_window))
+    def predict(self, residual_window, current_date, steps):
+        feature_pairs = list(zip(residual_window,))
         scaled_input = self.scaler.transform(feature_pairs)
 
         raw_pred = self.network.predict(scaled_input, steps).reshape(-1, 1)
@@ -48,10 +47,6 @@ class LSTM:
         print_df = pd.DataFrame({
             "Input": input_dates,
             "Residual": inverse_input[:, 0],
-            "Google Trends": inverse_input[:, 1],
-            "Positive": inverse_input[:, 2],
-            "Neutral": inverse_input[:, 3],
-            "Negative": inverse_input[:, 4],
             "Output": output_dates,
             "Prediction": predicted.flatten(),
         })

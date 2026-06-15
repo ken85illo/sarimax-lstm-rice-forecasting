@@ -19,7 +19,7 @@ CONFIG = {
         learning_rate=0.001,
         epochs=300,
         patience=10,
-        input_size=5,
+        input_size=1,
         output_size=1,
         dropout_rate=0.1
     ),
@@ -30,7 +30,7 @@ CONFIG = {
         learning_rate=0.001,
         epochs=100,
         patience=10,
-        input_size=5,
+        input_size=1,
         output_size=1,
         dropout_rate=0.1
 
@@ -57,22 +57,14 @@ def train_lstm_residuals(target = "high"):
     # Load raw data (rice price and google trends)
     train_resid = loader.load_train_residuals(target, f"Well-Milled {target.capitalize()}_train_residual") 
     val_resid = loader.load_val_residuals(target, f"Well-Milled {target.capitalize()}_val_residual")
-    trends_train, trends_val, _ = split_trends()
-
-    sentiment_train, sentiment_val, _ = split_sentiments()
-    pos_train, neu_train, neg_train = split_sentiment_classes(sentiment_train)
-    pos_val, neu_val, neg_val = split_sentiment_classes(sentiment_val)
 
     # Preprocess
     prep = Preprocessor(CONFIG[target])
     X_train, y_train, X_val, y_val = prep.prepare_training(
-        train_features=list(zip(train_resid, trends_train, pos_train, neu_train, neg_train)),
-        val_features=list(zip(val_resid, trends_val, pos_val, neu_val, neg_val)),
+        train_features=list(zip(train_resid,)),
+        val_features=list(zip(val_resid,)),
         target=target,
     )
-
-    print(prep.scaler.inverse_transform(X_val[1]))
-    print(prep.scaler.inverse_transform_feature(y_train[1], 0))
 
     # Build, train, and save
     network = LSTMNetwork(
@@ -125,20 +117,11 @@ def run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, 
     test_resid_high_tail = test_resid_high.iloc[-CONFIG["high"].lookback:]
     test_resid_low_tail = test_resid_low.iloc[-CONFIG["low"].lookback:]
 
-    _, _ , trends_test = split_trends()
-    _, _, sentiment_test = split_sentiments()
-
-    test_trends_tail = trends_test.iloc[-CONFIG["high"].lookback:]
-    test_sentiment_tail = sentiment_test.iloc[-CONFIG["high"].lookback:]
     
     residual_learning_low.run_rolling(
         endog=rice_low_df,
         exog=extended_enso_df,
-        trends_test=google_trends_df,
-        sentiment_test=sentiment_df,
         residuals_tail=test_resid_low_tail,
-        trends_tail=test_trends_tail,
-        sentiment_tail=test_sentiment_tail,
         start_date=earliest_date,
         end_date=latest_date,
         target_csv="low",
@@ -149,11 +132,7 @@ def run_residual_forecast(rice_low_df, rice_high_df, enso_df, google_trends_df, 
     residual_learning_high.run_rolling(
         endog=rice_high_df,
         exog=extended_enso_df,
-        trends_test=google_trends_df,
-        sentiment_test=sentiment_df,
         residuals_tail=test_resid_high_tail,
-        trends_tail=test_trends_tail,
-        sentiment_tail=test_sentiment_tail,
         start_date=earliest_date,
         end_date=latest_date,
         target_csv='high',
@@ -167,8 +146,6 @@ def run_residual_learning_test_set(target = "high"):
 
     rice_df = loader.load_rice()
     enso = loader.load_enso()
-    _, trends_val, trends_test = split_trends()
-    _, sentiment_val, sentiment_test = split_sentiments()
 
     # Test window
     test_start = pd.to_datetime("2025-09-11")
@@ -184,18 +161,12 @@ def run_residual_learning_test_set(target = "high"):
     # Validation tails (last 14 days ng validation to be passed as input)
     val_resid = loader.load_val_residuals(target, f"Well-Milled {target.capitalize()}_val_residual")
     val_resid_tail = val_resid.iloc[-CONFIG[target].lookback:]
-    val_trends_tail = trends_val.iloc[-CONFIG[target].lookback:]
-    val_sentiment_tail = sentiment_val.iloc[-CONFIG[target].lookback:]
 
     residual_learning = ResidualLearning(sarimax, lstm, target=target, steps=CONFIG[target].horizon)
     residual_learning.run_rolling(
         endog=endog_test,
         exog=exog_test,
-        trends_test=trends_test,
-        sentiment_test=sentiment_test,
         residuals_tail=val_resid_tail,
-        trends_tail=val_trends_tail,
-        sentiment_tail=val_sentiment_tail,
         start_date=test_start,
         end_date=test_end,
         target_csv=target,
@@ -224,6 +195,5 @@ def sanity_check_overfit():
 
 # == Entry point ==
 if __name__ == "__main__":
-    train_lstm_residuals(target="high")
     run_residual_learning_test_set(target="high")
-    # run_residual_learning_test_set(target="low")
+    run_residual_learning_test_set(target="low")
