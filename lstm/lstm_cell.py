@@ -43,11 +43,11 @@ class LSTMCell:
         f_t = sigmoid_function(self.W_f @ X_t + self.b_f)
         i_t = sigmoid_function(self.W_i @ X_t + self.b_i)
         c_tilde = tanh_function(self.W_c @ X_t + self.b_c)
-        c_t = i_t * c_tilde + f_t * c_prev
+        c_t = i_t * c_tilde + f_t * c_prev # Long term memory
         o_t = sigmoid_function(self.W_o @ X_t + self.b_o)
-        h_t = o_t * tanh_function(c_t)
+        h_t = o_t * tanh_function(c_t) # Short term memory
 
-
+        # Save states para sa backpropagation
         state = {
             "x_t":     x_t,
             "h_prev":  h_prev,
