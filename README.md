@@ -92,10 +92,22 @@ To run the backend server that accepts the inputs, execute the script in your te
 uvicorn server:app --reload
 ```
 
-### Train LSTM residual model
+
+### Train LSTM residual model and Sarimax Test Model
 
 Uncomment or call `train_lstm_residuals(target="low")` or `train_lstm_residuals(target="high")` in `main.py`.
 Then execute:
+
+To produce the `sarimax_model_Well-Milled_Low-test` and `sarimax_model_Well-Milled_High-test`you can run this in main.py.
+
+```python
+# == Entry point ==
+if __name__ == "__main__":
+    run_residual_learning_test_set(target="high")
+    run_residual_learning_test_set(target="low")
+```
+
+Then run in your terminal.
 
 ```powershell
 python main.py
